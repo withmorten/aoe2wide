@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
-using System.Windows.Forms;
 
 namespace AoE2Wide
 {
@@ -14,16 +13,77 @@ namespace AoE2Wide
         /// The main entry point for the application.
         /// </summary>
         /// 
-        const string OrgDrsName = @"Data\interfac.drs";
-        const string OrgExeName = @"age2_x1.exe";
-        const string PatchFileName = @"AoE2Wide.dat";
+        private const string OrgDrsName = @"Data\interfac.drs";
+        private const string OrgExeName = @"age2_x1.exe";
+        private static string _patchFileName;
+
+        private static string FindPatchFile()
+        {
+            const string fileName = @"AoE2Wide.dat";
+            DumpTrace(@"Locating Patch data file '{0}'", fileName);
+            var files = Directory.GetFiles(Directory.GetCurrentDirectory(), fileName, SearchOption.AllDirectories);
+            if (files.Length==0)
+                throw new Exception(@"No AoE2Wide.dat found in current directory or subdirectories");
+
+            if (files.Length > 1)
+            {
+                DumpWarning(@"Multiple AoE2Wide.dat instances found in current directory and subdirectories:");
+                foreach( var file in files)
+                    DumpTrace(file);
+            }
+            DumpInfo(@"Using '{0}'", files[0]);
+            return files[0];
+        }
 
         [STAThread]
-        static void Main()
+        static void Main( string[] args )
         {
             try
             {
-                PatchMany();
+                _patchFileName = FindPatchFile();
+
+                if (!File.Exists(OrgExeName))
+                    throw new Exception(string.Format(@"Cannot find original exe '{0}' in current folder", OrgExeName));
+                if (!File.Exists(OrgDrsName))
+                    throw new Exception(string.Format(@"Cannot find drs file '{0}' in current folder", OrgDrsName));
+
+                if (args.Length == 0)
+                {
+                    DumpInfo("Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                    var doneList = new HashSet<uint>();
+                    foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                    {
+                        try
+                        {
+                            var newWidth = (uint)screen.Bounds.Width;
+                            var newHeight = (uint)screen.Bounds.Height;
+                            var key = newWidth + (newHeight << 16);
+                            if (doneList.Add(key))
+                            {
+                                MakePatch(newWidth, newHeight);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            DumpException(e);
+                        }
+                    }
+                }
+                else if (args.Length == 2)
+                {
+                    uint newWidth, newHeight;
+                    if (!uint.TryParse(args[0], out newWidth) || ! uint.TryParse(args[1], out newHeight))
+                    {
+                        ShowUsage();
+                        return;
+                    }
+
+                    MakePatch(newWidth, newHeight);
+                }
+                else
+                {
+                    ShowUsage();
+                }
             }
             catch (Exception e)
             {
@@ -31,20 +91,10 @@ namespace AoE2Wide
             }
         }
 
-        private static void PatchMany()
+        private static void ShowUsage()
         {
-            if (!File.Exists(PatchFileName))
-                throw new Exception(string.Format(@"Cannot find {0} in current folder", PatchFileName));
-            if (!File.Exists(OrgExeName))
-                throw new Exception(string.Format(@"Cannot find {0} in current folder", OrgExeName));
-            if (!File.Exists(OrgDrsName))
-                throw new Exception(string.Format(@"Cannot find {0} in current folder", OrgDrsName));
-
-            MakePatch(1024, 600);
-            MakePatch(1440, 900);
-            MakePatch(1680, 1050);
-            MakePatch(1920, 1080);
-            MakePatch(1920, 1200);
+            DumpWarning("Usage: aoe2wide.exe [width height]");
+            DumpInfo("If the new width and height are omitted, the current screen resolution(s) will be used.");
         }
 
         private static void MakePatch(uint newWidth, uint newHeight)
@@ -57,7 +107,7 @@ namespace AoE2Wide
                 DumpInfo(string.Format(@"Changing {0}x{1} to {2}x{3}", oldWidth, oldHeight, newWidth, newHeight));
 
                 DumpTrace(@"Reading original executable");
-                var exe = System.IO.File.ReadAllBytes(OrgExeName);
+                var exe = File.ReadAllBytes(OrgExeName);
 
                 var newDrsName = string.Format(@"Data\{0:D4}{1:D4}.drs", newWidth, newHeight);
                 var newExeName = string.Format(@"age2_x1_{0}x{1}.exe", newWidth, newHeight);
@@ -66,16 +116,16 @@ namespace AoE2Wide
                 //Patcher.ListEm(bytes);
 
                 DumpTrace("Reading the patch file");
-                var patch = Patcher.ReadPatch(PatchFileName);
+                var patch = Patcher.ReadPatch(_patchFileName);
 
                 DumpTrace("Patching the executable: DRS reference");
-                Patcher.PatchDrsRefInExe(exe, System.IO.Path.GetFileName(newDrsName));
+                Patcher.PatchDrsRefInExe(exe, Path.GetFileName(newDrsName));
 
                 DumpTrace("Patching the executable: resolutions");
                 Patcher.PatchResolutions(exe, oldWidth, oldHeight, newWidth, newHeight, patch);
 
                 DumpTrace(string.Format(@"Writing the patched executable '{0}'", newExeName));
-                System.IO.File.WriteAllBytes(newExeName, exe);
+                File.WriteAllBytes(newExeName, exe);
 
                 DumpTrace(@"Opening original interfac.drs");
                 using (
@@ -113,15 +163,40 @@ namespace AoE2Wide
             Console.ForegroundColor = normalColor;
         }
 
+        private static void DumpInfo(string msg, string param1)
+        {
+            DumpInfo(string.Format(msg, param1));
+        }
+
         private static void DumpInfo(string msg)
         {
             Console.WriteLine(msg);
+        }
+
+        private static void DumpTrace(string msg, string param1)
+        {
+            DumpTrace(string.Format(msg, param1));
         }
 
         private static void DumpTrace(string msg)
         {
             var normalColor = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine(msg);
+            Console.ForegroundColor = normalColor;
+        }
+
+        private static void DumpWarning(string msg, string param1)
+        {
+            DumpWarning(string.Format(msg, param1));
+        }
+
+        private static void DumpWarning(string msg)
+        {
+            var normalColor = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.Write("Warning: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(msg);
             Console.ForegroundColor = normalColor;
         }
@@ -161,7 +236,7 @@ namespace AoE2Wide
 
     internal static class DrsPatcher
     {
-        public static void Patch( Stream oldDrs, Stream newDrs, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight)
+        public static void Patch(Stream oldDrs, Stream newDrs, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight)
         {
             var reader = new BinaryReader(oldDrs);
             var writer = new BinaryWriter(newDrs);
@@ -188,7 +263,7 @@ namespace AoE2Wide
 
             foreach (var table in inTables)
             {
-                Debug.Assert(oldDrs.Position == table.Start);
+                Trace.Assert(oldDrs.Position == table.Start);
                 foreach( var item in table.Items)
                 {
                     item.Id = reader.ReadUInt32();
@@ -199,7 +274,7 @@ namespace AoE2Wide
 
             foreach (var item in inTables.SelectMany(table => table.Items))
             {
-                Debug.Assert(oldDrs.Position == item.Start);
+                Trace.Assert(oldDrs.Position == item.Start);
                 item.Data = reader.ReadBytes((int)item.Size);
             }
 
@@ -211,7 +286,7 @@ namespace AoE2Wide
             foreach (var inTable in inTables)
             {
                 var outItemList = new List<DrsItem>();
-                var outTable = new DrsTable()
+                var outTable = new DrsTable
                                    {
                                        Start = inTable.Start,
                                        Type = inTable.Type,
@@ -244,7 +319,7 @@ namespace AoE2Wide
             foreach (var outTable in outTables)
             {
                 var ndp = newDrs.Position;
-                Debug.Assert(newDrs.Position == outTable.Start);
+                Trace.Assert(ndp == outTable.Start);
                 foreach (var outItem in outTable.Items)
                 {
                     writer.Write(outItem.Id);
@@ -256,7 +331,7 @@ namespace AoE2Wide
             foreach (var outItem in outTables.SelectMany(outTable => outTable.Items))
             {
                 var ndp = newDrs.Position;
-                Debug.Assert(newDrs.Position == outItem.Start);
+                Trace.Assert(ndp == outItem.Start);
                 writer.Write(outItem.Data);
             }
             writer.Close();
@@ -359,7 +434,7 @@ namespace AoE2Wide
             }
 
             var osp = outStream.Position;
-            Debug.Assert(newLineDataStart == outStream.Position);
+            Trace.Assert(newLineDataStart == osp);
 
             for (var inLine = 0; inLine < oldHeight; inLine++)
             {
