@@ -36,7 +36,7 @@ namespace AoE2Wide
             {
                 if (line.StartsWith("#"))
                     continue;
-                var words = line.Split(new char[] { ' ' }, 4);
+                var words = line.Split(new[] { ' ' }, 4);
                 if (words.Length < 3)
                     continue;
                 if (
@@ -126,7 +126,7 @@ namespace AoE2Wide
                 if (item.Type.Equals("dV") || item.Type.Equals("dH"))
                 {
                     uint expectedOrgValue;
-                    var subWords = item.Comments.Split(new char[] {' '}, 2);
+                    var subWords = item.Comments.Split(new[] {' '}, 2);
                     if (subWords.Length == 0 || !uint.TryParse(subWords[0], out expectedOrgValue))
                     {
                         Console.WriteLine("{0} action is safer if you mention the expected orgValue. Encountered {1} @ {2:X8}", item.Type, orgValue, item.Pos);
