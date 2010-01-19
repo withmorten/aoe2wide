@@ -212,6 +212,8 @@ namespace AoE2Wide
                 {
                     oldHeight = heights[q];
                     oldWidth = widths[q];
+                    if (oldHeight == newHeight && oldWidth == newWidth)
+                        throw new Exception("It doesn't make sense to patch original resolutions");
                     return;
                 }
             }
