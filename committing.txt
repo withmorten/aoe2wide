@@ -1,0 +1,2 @@
+You can email your patches to boekabart@gmail.com
+This extension can help you do that easily: http://mercurial.selenic.com/wiki/PatchbombExtension
