@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace AoE2Wide
@@ -52,11 +53,10 @@ namespace AoE2Wide
                                {
                                    Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
                                    OriginalValue = uint.Parse(words[1]),
-                                   Type = words[2],
-                                   Comments = words[3]
+                                   Type = words[2]
                                };
                 if (words.Length == 4)
-                    item.Desc = words[3];
+                    item.Comments = words[3];
                 items.Add(item);
                 usedLines.Add(line);
             }
@@ -68,10 +68,8 @@ namespace AoE2Wide
         {
                 var drsPos = 0x0027BE90;
                 if (exe[drsPos] != 'i')
-                {
-                    Console.WriteLine(@"Didn't find interfac.drs reference at expected location. Wrong exe. Stopping.");
-                    throw new Exception();
-                }
+                    throw new Exception(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
+
                 var newBytes = Encoding.ASCII.GetBytes(newInterfaceDrsName);
                 foreach (var byt in newBytes)
                 {
@@ -102,7 +100,7 @@ namespace AoE2Wide
             {
                 if (h > oldHeight && h <= newHeight)
                 {
-                    vmap[h] = newWidth + hshift;
+                    vmap[h] = newHeight + hshift;
                     hshift++;
                 }
             }
@@ -110,11 +108,30 @@ namespace AoE2Wide
             hmap[oldWidth] = newWidth;
             vmap[oldHeight] = newHeight;
 
+            foreach (var pair in hmap)
+                UserFeedback.Trace(string.Format(@"Horizontal {0} => {1}", pair.Key, pair.Value));
+
+            foreach (var pair in vmap)
+                UserFeedback.Trace(string.Format(@"Vertical {0} => {1}", pair.Key, pair.Value));
+
             foreach (var item in patch)
             {
                 var oldValue = item.OriginalValue;
                 uint newValue;
-                var map = item.Type.Contains("V") ? vmap : hmap;
+                bool hor = item.Type.Contains("H");
+                bool ver = item.Type.Contains("V");
+
+                // If a number is used for both horizontal and vertical
+                //  prefer the one that we are patching.
+                if(hor && ver)
+                {
+                    if (oldWidth == oldValue) // so if we have 1024 HV, and are patching 1024x768, we'd ignore the V, and use the H
+                        ver = false;
+                    else
+                        hor = false;
+                }
+                Debug.Assert(hor || ver);
+                var map = ver ? vmap : hmap;
                 if (!map.TryGetValue(oldValue, out newValue))
                     newValue = oldValue;
 
@@ -126,18 +143,22 @@ namespace AoE2Wide
                 if (item.Type.Equals("dV") || item.Type.Equals("dH"))
                 {
                     uint expectedOrgValue;
-                    var subWords = item.Comments.Split(new[] {' '}, 2);
+                    var subWords = item.Comments.Split(new[] { ' ' }, 2);
                     if (subWords.Length == 0 || !uint.TryParse(subWords[0], out expectedOrgValue))
                     {
-                        Console.WriteLine("{0} action is safer if you mention the expected orgValue. Encountered {1} @ {2:X8}", item.Type, orgValue, item.Pos);
+                        UserFeedback.Warning(
+                            string.Format(
+                                "{0} action is safer if you mention the expected orgValue. Encountered {1} @ {2:X8}",
+                                item.Type, orgValue, item.Pos));
                     }
                     else
                     {
                         if (expectedOrgValue != orgValue)
                         {
-                            Console.WriteLine(
-                                @"{0} action expected value mismatch: {1} expected, {2} encountered @ {3:X8} [NOT PATCHED]", item.Type,
-                                expectedOrgValue, orgValue, item.Pos);
+                            UserFeedback.Warning(string.Format(
+                                                     @"{0} action expected value mismatch: {1} expected, {2} encountered @ {3:X8} [NOT PATCHED]",
+                                                     item.Type,
+                                                     expectedOrgValue, orgValue, item.Pos));
                             continue;
                         }
                     }
@@ -149,9 +170,10 @@ namespace AoE2Wide
                 {
                     if (orgValue != oldValue)
                     {
-                        Console.WriteLine(
-                            @"{0} action expected value mismatch: {1} expected, {2} encountered @ {3:X8} [NOT PATCHED]", item.Type,
-                            oldValue, orgValue, item.Pos);
+                        UserFeedback.Warning(string.Format(
+                                                 @"{0} action expected value mismatch: {1} expected, {2} encountered @ {3:X8} [NOT PATCHED]",
+                                                 item.Type,
+                                                 oldValue, orgValue, item.Pos));
                         continue;
                     }
                 }
@@ -171,7 +193,6 @@ namespace AoE2Wide
             public int Pos;
             public uint OriginalValue;
             public string Type;
-            public string Desc;
             public string Comments;
         }
     }
