@@ -52,7 +52,7 @@ namespace AoE2Wide
                 var item = new Item
                                {
                                    Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
-                                   OriginalValue = uint.Parse(words[1]),
+                                   OriginalValue = int.Parse(words[1]),
                                    Type = words[2]
                                };
                 if (words.Length == 4)
@@ -78,16 +78,16 @@ namespace AoE2Wide
                 }
         }
 
-        static public void PatchResolutions(byte[] exe, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight, IEnumerable<Item> patch)
+        static public void PatchResolutions(byte[] exe, int oldWidth, int oldHeight, int newWidth, int newHeight, IEnumerable<Item> patch)
         {
             // Create the map so, that originally larger resolutions stay larger even after patching. They _may_ become invalid though.
             // This is necessary to keep the internal (in AoE) if > else if > else if > code working.
-            var hmap = new Dictionary<uint, uint>();
-            var vmap = new Dictionary<uint, uint>();
-            var existingWidths = new uint[] { 640, 800, 1024, 1280, 1600 };
-            var existingHeights = new uint[] { 480, 600, 768, 1024, 1200 };
-            uint wshift = 1;
-            uint hshift = 1;
+            var hmap = new Dictionary<int, int>();
+            var vmap = new Dictionary<int, int>();
+            var existingWidths = new int[] { 640, 800, 1024, 1280, 1600 };
+            var existingHeights = new int[] { 480, 600, 768, 1024, 1200 };
+            var wshift = 1;
+            var hshift = 1;
             foreach (var w in existingWidths)
             {
                 if (w > oldWidth && w <= newWidth)
@@ -117,9 +117,9 @@ namespace AoE2Wide
             foreach (var item in patch)
             {
                 var oldValue = item.OriginalValue;
-                uint newValue;
-                bool hor = item.Type.Contains("H");
-                bool ver = item.Type.Contains("V");
+                int newValue;
+                var hor = item.Type.Contains("H");
+                var ver = item.Type.Contains("V");
 
                 // If a number is used for both horizontal and vertical
                 //  prefer the one that we are patching.
@@ -135,16 +135,16 @@ namespace AoE2Wide
                 if (!map.TryGetValue(oldValue, out newValue))
                     newValue = oldValue;
 
-                var ob0 = (uint)exe[item.Pos];
-                var ob1 = (uint)exe[item.Pos + 1];
-                var ob2 = (uint)exe[item.Pos + 2];
-                var ob3 = (uint)exe[item.Pos + 3];
+                var ob0 = (int)exe[item.Pos];
+                var ob1 = (int)exe[item.Pos + 1];
+                var ob2 = (int)exe[item.Pos + 2];
+                var ob3 = (int)exe[item.Pos + 3];
                 var orgValue = ob0 | ob1 << 8 | ob2 << 16 | ob3 << 24;
                 if (item.Type.Equals("dV") || item.Type.Equals("dH"))
                 {
-                    uint expectedOrgValue;
+                    int expectedOrgValue;
                     var subWords = item.Comments.Split(new[] { ' ' }, 2);
-                    if (subWords.Length == 0 || !uint.TryParse(subWords[0], out expectedOrgValue))
+                    if (subWords.Length == 0 || !int.TryParse(subWords[0], out expectedOrgValue))
                     {
                         UserFeedback.Warning(
                             string.Format(
@@ -191,7 +191,7 @@ namespace AoE2Wide
         internal struct Item
         {
             public int Pos;
-            public uint OriginalValue;
+            public int OriginalValue;
             public string Type;
             public string Comments;
         }

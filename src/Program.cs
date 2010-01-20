@@ -63,18 +63,16 @@ namespace AoE2Wide
                     {
                         UserFeedback.Info(
                             "Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
-                        var doneList = new HashSet<uint>();
+                        var doneList = new HashSet<int>();
                         foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                         {
                             try
                             {
-                                var newWidth = (uint)screen.Bounds.Width;
-                                var newHeight = (uint)screen.Bounds.Height;
-                                var key = newWidth + (newHeight << 16);
+                                var newWidth = screen.Bounds.Width;
+                                var newHeight = screen.Bounds.Height;
+                                var key = newWidth + (newHeight*65536);
                                 if (doneList.Add(key))
-                                {
                                     MakePatch(newWidth, newHeight);
-                                }
                             }
                             catch (Exception e)
                             {
@@ -85,8 +83,8 @@ namespace AoE2Wide
                     break;
                 case 2:
                     {
-                        uint newWidth, newHeight;
-                        if (!uint.TryParse(args[0], out newWidth) || !uint.TryParse(args[1], out newHeight))
+                        int newWidth, newHeight;
+                        if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
                         {
                             ShowUsage();
                             return;
@@ -107,11 +105,11 @@ namespace AoE2Wide
             UserFeedback.Info("If the new width and height are omitted, the current screen resolution(s) will be used.");
         }
 
-        private static void MakePatch(uint newWidth, uint newHeight)
+        private static void MakePatch(int newWidth, int newHeight)
         {
             try
             {
-                uint oldWidth, oldHeight;
+                int oldWidth, oldHeight;
                 GetOldWidthHeight(newWidth, newHeight, out oldWidth, out oldHeight);
 
                 UserFeedback.Info(string.Format(@"Changing {0}x{1} to {2}x{3}", oldWidth, oldHeight, newWidth, newHeight));
@@ -161,10 +159,19 @@ namespace AoE2Wide
             }
         }
 
-        private static void GetOldWidthHeight(uint newWidth, uint newHeight, out uint oldWidth, out uint oldHeight)
+        private static void GetOldWidthHeight(int newWidth, int newHeight, out int oldWidth, out int oldHeight)
         {
-            var widths = new uint[] { 800, 1024, 1280 };
-            var heights = new uint[] { 600, 768, 1024 };
+            // Temp ?? if width >= 1280, use 1280x1024 as source even if newHeight is smaller (scale down then)
+            if (newWidth >= 1280)
+            {
+                oldWidth = 1280;
+                oldHeight = 1024;
+                return;
+            }
+
+            // The only-up code: 1024x768 or 800x660 doesn't work well atm.
+            var widths = new [] { 800, 1024, 1280 };
+            var heights = new [] { 600, 768, 1024 };
 
             for (var q = widths.Length - 1; q >= 0; q--)
             {

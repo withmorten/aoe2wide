@@ -23,7 +23,7 @@ namespace AoE2Wide
 
     internal static class DrsPatcher
     {
-        public static void Patch(Stream oldDrs, Stream newDrs, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight)
+        public static void Patch(Stream oldDrs, Stream newDrs, int oldWidth, int oldHeight, int newWidth, int newHeight)
         {
             var reader = new BinaryReader(oldDrs);
             var writer = new BinaryWriter(newDrs);
@@ -124,9 +124,9 @@ namespace AoE2Wide
             writer.Close();
         }
 
-        private static byte[] ConvertDrsItem(DrsItem item, uint type, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight)
+        private static byte[] ConvertDrsItem(DrsItem item, uint type, int oldWidth, int oldHeight, int newWidth, int newHeight)
         {
-            return type == 0x736c7020 ? SlpStretcher.Enlarge(item.Data, oldWidth, oldHeight, newWidth, newHeight) : item.Data;
+            return type == 0x736c7020 ? SlpStretcher.Enlarge(item.Id, item.Data, oldWidth, oldHeight, newWidth, newHeight) : item.Data;
         }
     }
 }
