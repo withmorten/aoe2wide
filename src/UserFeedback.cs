@@ -26,7 +26,7 @@ namespace AoE2Wide
             Console.WriteLine(msg);
         }
 
-        public static void Trace(string msg, string param1)
+        public static void Trace(string msg, object param1)
         {
             Trace(string.Format(msg, param1));
         }
@@ -39,7 +39,7 @@ namespace AoE2Wide
             Console.ForegroundColor = normalColor;
         }
 
-        public static void Warning(string msg, string param1)
+        public static void Warning(string msg, object param1)
         {
             Warning(string.Format(msg, param1));
         }

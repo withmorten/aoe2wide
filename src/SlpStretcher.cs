@@ -6,7 +6,7 @@ namespace AoE2Wide
 {
     internal static class SlpStretcher
     {
-        public static byte[] Enlarge(byte[] data, uint oldWidth, uint oldHeight, uint newWidth, uint newHeight)
+        public static byte[] Enlarge(uint id, byte[] data, int oldWidth, int oldHeight, int newWidth, int newHeight)
         {
             var reader = new BinaryReader(new MemoryStream(data, false));
 
@@ -24,20 +24,20 @@ namespace AoE2Wide
             var paletteOffset = reader.ReadUInt32();
             var properties = reader.ReadUInt32();
 
-            var width = reader.ReadUInt32();
+            var width = reader.ReadInt32();
             if (width != oldWidth)
                 return data;
 
-            var height = reader.ReadUInt32();
+            var height = reader.ReadInt32();
             if (height != oldHeight)
                 return data;
 
             var centerX = reader.ReadInt32();
             var centerY = reader.ReadInt32();
 
-            var newMaskSize = newHeight * 4;
+            var newMaskSize = (uint)(newHeight * 4);
             var newLinesOffset = maskOffset + newMaskSize;
-            var newLinesSize = newHeight * 4;
+            var newLinesSize = (uint)(newHeight * 4);
             var newLineDataStart = newLinesOffset + newLinesSize;
 
             var outStream = new MemoryStream();
@@ -50,23 +50,46 @@ namespace AoE2Wide
             writer.Write(maskOffset);
             writer.Write(paletteOffset);
             writer.Write(properties);
-            writer.Write(newWidth);
-            writer.Write(newHeight);
+            writer.Write((Int32)newWidth);
+            writer.Write((Int32)newHeight);
             writer.Write(centerX);
             writer.Write(centerY);
 
+            var osp = outStream.Position;
+            Trace.Assert(osp == maskOffset);
+
             var extraLines = newHeight - oldHeight;
 
-            for (var inLine = 0; inLine < oldHeight; inLine++)
+            var centreLine = oldHeight/2;
+            if (extraLines >= 0)
             {
-                var lineMaskData = reader.ReadUInt32();
-                writer.Write(lineMaskData);
-                if (inLine != oldHeight / 2)
-                    continue;
-
-                for (var el = 0; el < extraLines; el++)
+                for (var inLine = 0; inLine < oldHeight; inLine++)
+                {
+                    var lineMaskData = reader.ReadUInt32();
                     writer.Write(lineMaskData);
+                    if (inLine != centreLine)
+                        continue;
+
+                    for (var el = 0; el < extraLines; el++)
+                        writer.Write(lineMaskData);
+                }
             }
+            else
+            {
+                for (var inLine = 0; inLine < oldHeight; inLine++)
+                {
+                    var lineMaskData = reader.ReadUInt32();
+
+                    // Skip 'extralines' lines on the centerline and above
+                    if (inLine >= centreLine + extraLines && inLine < centreLine)
+                        continue;
+
+                    writer.Write(lineMaskData);
+                }
+            }
+
+            osp = outStream.Position;
+            Trace.Assert(osp == newLinesOffset);
 
             var lineStarts = new UInt32[oldHeight + 1];
             for (var inLine = 0; inLine < oldHeight; inLine++)
@@ -79,39 +102,78 @@ namespace AoE2Wide
 
             var nextLineStart = newLineDataStart;
 
-            for (var inLine = 0; inLine < oldHeight; inLine++)
+            if (extraLines >= 0)
             {
-                writer.Write(nextLineStart);
-                nextLineStart += lineSizes[inLine];
-
-                if (inLine != oldHeight / 2)
-                    continue;
-
-                for (var el = 0; el < extraLines; el++)
+                for (var inLine = 0; inLine < oldHeight; inLine++)
                 {
+                    writer.Write(nextLineStart);
+                    nextLineStart += lineSizes[inLine];
+
+                    if (inLine != centreLine)
+                        continue;
+
+                    for (var el = 0; el < extraLines; el++)
+                    {
+                        writer.Write(nextLineStart);
+                        nextLineStart += lineSizes[inLine];
+                    }
+                }
+            }
+            else
+            {
+                for (var inLine = 0; inLine < oldHeight; inLine++)
+                {
+                    // Skip 'extralines' lines on the centerline and above
+                    if (inLine >= centreLine + extraLines && inLine < centreLine)
+                        continue;
+
                     writer.Write(nextLineStart);
                     nextLineStart += lineSizes[inLine];
                 }
             }
 
-            var osp = outStream.Position;
+            osp = outStream.Position;
             Trace.Assert(newLineDataStart == osp);
 
-            for (var inLine = 0; inLine < oldHeight; inLine++)
+            if (extraLines >= 0)
             {
-                var lineData = reader.ReadBytes((int)lineSizes[inLine]);
-                writer.Write(lineData);
-
-                if (inLine != oldHeight / 2)
-                    continue;
-
-                for (var el = 0; el < extraLines; el++)
+                for (var inLine = 0; inLine < oldHeight; inLine++)
+                {
+                    var lineData = reader.ReadBytes((int) lineSizes[inLine]);
                     writer.Write(lineData);
+
+                    if (inLine != centreLine)
+                        continue;
+
+                    for (var el = 0; el < extraLines; el++)
+                        writer.Write(lineData);
+                }
             }
+            else
+            {
+                for (var inLine = 0; inLine < oldHeight; inLine++)
+                {
+                    var lineData = reader.ReadBytes((int)lineSizes[inLine]);
+
+                    // Skip 'extralines' lines on the centerline and above
+                    if (inLine >= centreLine + extraLines && inLine < centreLine)
+                        continue;
+
+                    writer.Write(lineData);
+                }
+            }
+
+            Trace.Assert(outStream.Position == nextLineStart);
 
             writer.Close();
 
-            return outStream.GetBuffer();
+            var newSlp = outStream.ToArray();
+
+            // For debugging:
+            //File.WriteAllBytes(string.Format(@"slp\{0}org.slp", id), data);
+            //File.WriteAllBytes(string.Format(@"slp\{0}new.slp", id), newSlp);
+
+            return newSlp;
         }
     }
 }
