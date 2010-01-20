@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
+using System.Windows.Forms;
 
 namespace AoE2Wide
 {
@@ -36,9 +37,35 @@ namespace AoE2Wide
         }
 
         [STAThread]
-        static void Main( string[] args )
+        static void Main(string[] args)
         {
             try
+            {
+                Go(args);
+            }
+            catch (Exception e)
+            {
+                DumpException(e);
+            }
+
+            // Assumption:
+            // If the console window title is equal to the executable path, exe was run by double
+            // If it doesn't (eg. prefixed by c:\windows\system32\cmd.exe - c:\Progra...... )
+            //  it was run from a console window (or batch file!) and shouldn't wait for a key.
+            var runningFromCommandPrompt =
+                !System.Windows.Forms.Application.ExecutablePath.Equals(Console.Title,
+                                                                        StringComparison.InvariantCultureIgnoreCase);
+            if (runningFromCommandPrompt)
+                return;
+
+            DumpInfo(@"Press any key to quit");
+            while (!Console.KeyAvailable)
+            {
+                System.Threading.Thread.Sleep(50);
+            }
+        }
+
+        static void Go( string[] args )
             {
                 _patchFileName = FindPatchFile();
 
@@ -49,14 +76,15 @@ namespace AoE2Wide
 
                 if (args.Length == 0)
                 {
-                    DumpInfo("Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                    DumpInfo(
+                        "Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
                     var doneList = new HashSet<uint>();
                     foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                     {
                         try
                         {
-                            var newWidth = (uint)screen.Bounds.Width;
-                            var newHeight = (uint)screen.Bounds.Height;
+                            var newWidth = (uint) screen.Bounds.Width;
+                            var newHeight = (uint) screen.Bounds.Height;
                             var key = newWidth + (newHeight << 16);
                             if (doneList.Add(key))
                             {
@@ -85,11 +113,6 @@ namespace AoE2Wide
                     ShowUsage();
                 }
             }
-            catch (Exception e)
-            {
-                DumpException(e);
-            }
-        }
 
         private static void ShowUsage()
         {
