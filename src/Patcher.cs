@@ -68,7 +68,7 @@ namespace AoE2Wide
         {
                 var drsPos = 0x0027BE90;
                 if (exe[drsPos] != 'i')
-                    throw new Exception(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
+                    throw new FatalError(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
 
                 var newBytes = Encoding.ASCII.GetBytes(newInterfaceDrsName);
                 foreach (var byt in newBytes)
