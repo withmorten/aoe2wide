@@ -227,6 +227,31 @@ namespace AoE2Wide
                     }
                 }
 
+                try
+                {
+                    var pubDir = Path.Combine(_gameDirectory, @"donePatches");
+                    if (Directory.Exists(pubDir))
+                    {
+                        var specificPubDir = Path.Combine(pubDir, string.Format(@"{0}x{1}", newWidth, newHeight));
+                        if (!Directory.Exists(specificPubDir))
+                            Directory.CreateDirectory(specificPubDir);
+
+                        var specificPubDataDir = Path.Combine(specificPubDir,@"Data");
+                        if (!Directory.Exists(specificPubDataDir))
+                            Directory.CreateDirectory(specificPubDataDir);
+
+                        var pubExePath = Path.Combine(specificPubDir, Path.GetFileName(newExeName));
+                        var pubDrsPath = Path.Combine(specificPubDataDir, Path.GetFileName(newDrsName));
+
+                        File.Copy(newExeName, pubExePath, true);
+                        File.Copy(newDrsName, pubDrsPath, true);
+                    }
+                }
+                catch (Exception e)
+                {
+                    UserFeedback.Warning("Couldn't publish: {0}", e.ToString());
+                }
+
                 UserFeedback.Trace("Done");
             }
             catch (Exception e)
