@@ -10,6 +10,11 @@ namespace AoE2Wide
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("An error occurred:");
             Console.WriteLine(e.Message);
+
+            // Only for 'not our exception', dump details
+            if (e is FatalError)
+                return;
+
             Console.ForegroundColor = ConsoleColor.DarkRed;
             Console.WriteLine("Exception Details:");
             Console.WriteLine(e.ToString());

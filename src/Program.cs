@@ -1,36 +1,96 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 
 namespace AoE2Wide
 {
+    class FatalError : Exception
+    {
+        public FatalError(string msg) : base(msg)
+        {
+        }
+    }
+
     static class Program
     {
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         /// 
-        private const string OrgDrsName = @"Data\interfac.drs";
-        private const string OrgExeName = @"age2_x1.exe";
-        private static string _patchFileName;
+        private static string _orgDrsPath;
+        private static string _orgExePath;
+        private static string _patchFilePath;
+        private static string _gameDirectory;
 
         private static string FindPatchFile()
         {
             const string fileName = @"AoE2Wide.dat";
-            UserFeedback.Trace(@"Locating Patch data file '{0}'", fileName);
-            var files = Directory.GetFiles(Directory.GetCurrentDirectory(), fileName, SearchOption.AllDirectories);
+            const string whatFile = @"Patch data";
+            return FindFile(whatFile, fileName, null, null);
+        }
+
+        private static string FindExeFile()
+        {
+            const string fileName = @"age2_x1*.exe";
+            const string whatFile = @"original exe";
+            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
+        }
+
+        private static string FindFile(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
+        {
+            UserFeedback.Trace(string.Format(@"Locating {0} file '{1}'", whatFile, fileName));
+            var files = Directory.GetFiles(_gameDirectory, fileName, SearchOption.AllDirectories);
+
+            if (expectedSize.HasValue)
+                files = files.Where(fn => IsFileSizeCorrect(fn, expectedSize.Value)).ToArray();
+
+            if (expectedHash != null)
+                files = files.Where(fn => IsFileHashCorrect(fn, expectedHash)).ToArray();
+
             if (files.Length == 0)
-                throw new Exception(@"No AoE2Wide.dat found in current directory or subdirectories");
+                throw new FatalError(string.Format(@"No correct {0} found in current directory or subdirectories",
+                                                  whatFile));
 
             if (files.Length > 1)
             {
-                UserFeedback.Warning(@"Multiple AoE2Wide.dat instances found in current directory and subdirectories:");
+                UserFeedback.Warning(
+                    @"Multiple correct {0} instances found in current directory and subdirectories:",
+                    whatFile);
                 foreach (var file in files)
                     UserFeedback.Trace(file);
             }
             UserFeedback.Info(@"Using '{0}'", files[0]);
             return files[0];
+        }
+
+        private static bool IsFileSizeCorrect(string fn, long expectedSize)
+        {
+            if (new FileInfo(fn).Length == expectedSize)
+                return true;
+            UserFeedback.Trace("'{0}' is not the expected size", fn);
+            return false;
+        }
+
+        private static string GetChecksum(string file)
+        {
+            using (var stream = File.OpenRead(file))
+                using (var md5 = MD5.Create())
+                    return BitConverter.ToString(md5.ComputeHash(stream));
+        }
+
+        private static bool IsFileHashCorrect(string fn, string expectedHash)
+        {
+            var actualHash = GetChecksum(fn);
+            if (actualHash.Equals(expectedHash,StringComparison.InvariantCultureIgnoreCase))
+                return true;
+            UserFeedback.Trace(string.Format(@"'{0}' doesn't meet the expected hashcode '{1}' instead of '{2}'",
+                                             fn,
+                                             actualHash,
+                                             expectedHash));
+            return false;
         }
 
         [STAThread]
@@ -50,12 +110,13 @@ namespace AoE2Wide
 
         static void Go(string[] args)
         {
-            _patchFileName = FindPatchFile();
+            _gameDirectory = FindGameDirectory();
+            _patchFilePath = FindPatchFile();
+            _orgExePath = FindExeFile();
+            _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
 
-            if (!File.Exists(OrgExeName))
-                throw new Exception(string.Format(@"Cannot find original exe '{0}' in current folder", OrgExeName));
-            if (!File.Exists(OrgDrsName))
-                throw new Exception(string.Format(@"Cannot find drs file '{0}' in current folder", OrgDrsName));
+            if (!File.Exists(_orgDrsPath))
+                throw new FatalError(string.Format(@"Cannot find drs file '{0}' in current folder", _orgDrsPath));
 
             switch (args.Length)
             {
@@ -70,7 +131,7 @@ namespace AoE2Wide
                             {
                                 var newWidth = screen.Bounds.Width;
                                 var newHeight = screen.Bounds.Height;
-                                var key = newWidth + (newHeight*65536);
+                                var key = newWidth + (newHeight * 65536);
                                 if (doneList.Add(key))
                                     MakePatch(newWidth, newHeight);
                             }
@@ -99,6 +160,20 @@ namespace AoE2Wide
             }
         }
 
+        private static string FindGameDirectory()
+        {
+            UserFeedback.Trace(@"Locating game main folder...");
+            var iter = new DirectoryInfo(Directory.GetCurrentDirectory());
+            while (iter.GetFiles(@"language_x1.dll").Length == 0)
+            {
+                iter = iter.Parent;
+                if (iter == null)
+                    throw new FatalError(@"Cannot locate the game directory (where I expect language_x1.dll)");
+            }
+            UserFeedback.Trace(@"Located @'{0}'", iter.FullName);
+            return iter.FullName;
+        }
+
         private static void ShowUsage()
         {
             UserFeedback.Warning("Usage: aoe2wide.exe [width height]");
@@ -115,16 +190,17 @@ namespace AoE2Wide
                 UserFeedback.Info(string.Format(@"Changing {0}x{1} to {2}x{3}", oldWidth, oldHeight, newWidth, newHeight));
 
                 UserFeedback.Trace(@"Reading original executable");
-                var exe = File.ReadAllBytes(OrgExeName);
+                var exe = File.ReadAllBytes(_orgExePath);
 
-                var newDrsName = string.Format(@"Data\{0:D4}{1:D4}.drs", newWidth, newHeight);
-                var newExeName = string.Format(@"age2_x1_{0}x{1}.exe", newWidth, newHeight);
+                var newDrsName = Path.Combine(Path.Combine(_gameDirectory, @"Data"), string.Format(@"{0:D4}{1:D4}.drs", newWidth, newHeight));
+                var newExeName = Path.Combine(Path.GetDirectoryName(_orgExePath),
+                                              string.Format(@"age2_x1_{0}x{1}.exe", newWidth, newHeight));
 
                 //Trace(@"Writing file with all occurrences of resolutions");
                 //Patcher.ListEm(bytes);
 
                 UserFeedback.Trace("Reading the patch file");
-                var patch = Patcher.ReadPatch(_patchFileName);
+                var patch = Patcher.ReadPatch(_patchFilePath);
 
                 UserFeedback.Trace("Patching the executable: DRS reference");
                 Patcher.PatchDrsRefInExe(exe, Path.GetFileName(newDrsName));
@@ -137,7 +213,7 @@ namespace AoE2Wide
 
                 UserFeedback.Trace(@"Opening original interfac.drs");
                 using (
-                    var interfaceDrs = new FileStream(OrgDrsName, FileMode.Open,
+                    var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
                                                       FileSystemRights.ReadData,
                                                       FileShare.Read, 1024 * 1024, FileOptions.SequentialScan))
                 {
@@ -170,8 +246,8 @@ namespace AoE2Wide
             }
 
             // The only-up code: 1024x768 or 800x660 doesn't work well atm.
-            var widths = new [] { 800, 1024, 1280 };
-            var heights = new [] { 600, 768, 1024 };
+            var widths = new[] { 800, 1024, 1280 };
+            var heights = new[] { 600, 768, 1024 };
 
             for (var q = widths.Length - 1; q >= 0; q--)
             {
@@ -180,11 +256,11 @@ namespace AoE2Wide
                     oldHeight = heights[q];
                     oldWidth = widths[q];
                     if (oldHeight == newHeight && oldWidth == newWidth)
-                        throw new Exception("It doesn't make sense to patch original resolutions");
+                        throw new FatalError("It doesn't make sense to patch original resolutions");
                     return;
                 }
             }
-            throw new Exception("Resolutions smaller than 800 wide or 600 high are not possible");
+            throw new FatalError("Resolutions smaller than 800 wide or 600 high are not possible");
         }
     }
 }
