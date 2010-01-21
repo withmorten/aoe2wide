@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
@@ -35,9 +36,9 @@ namespace AoE2Wide
             var centerX = reader.ReadInt32();
             var centerY = reader.ReadInt32();
 
-            var newMaskSize = (uint)(newHeight * 4);
+            var newMaskSize = (uint) (newHeight*4);
             var newLinesOffset = maskOffset + newMaskSize;
-            var newLinesSize = (uint)(newHeight * 4);
+            var newLinesSize = (uint) (newHeight*4);
             var newLineDataStart = newLinesOffset + newLinesSize;
 
             var outStream = new MemoryStream();
@@ -50,8 +51,8 @@ namespace AoE2Wide
             writer.Write(maskOffset);
             writer.Write(paletteOffset);
             writer.Write(properties);
-            writer.Write((Int32)newWidth);
-            writer.Write((Int32)newHeight);
+            writer.Write((Int32) newWidth);
+            writer.Write((Int32) newHeight);
             writer.Write(centerX);
             writer.Write(centerY);
 
@@ -91,77 +92,59 @@ namespace AoE2Wide
             osp = outStream.Position;
             Trace.Assert(osp == newLinesOffset);
 
-            var lineStarts = new UInt32[oldHeight + 1];
+            var orgLineStarts = new UInt32[oldHeight + 1];
             for (var inLine = 0; inLine < oldHeight; inLine++)
-                lineStarts[inLine] = reader.ReadUInt32();
-            lineStarts[oldHeight] = (uint)data.Length;
+                orgLineStarts[inLine] = reader.ReadUInt32();
+            orgLineStarts[oldHeight] = (uint) data.Length;
 
-            var lineSizes = new UInt32[oldHeight];
+            //var orgLineSizes = new UInt32[oldHeight];
+            var orgLines = new List<byte[]>(oldHeight);
             for (var inLine = 0; inLine < oldHeight; inLine++)
-                lineSizes[inLine] = lineStarts[inLine + 1] - lineStarts[inLine];
+            {
+                var orgLineSize = orgLineStarts[inLine + 1] - orgLineStarts[inLine];
+                orgLines.Add(reader.ReadBytes((int) orgLineSize));
+            }
+
+            var linePatch = new byte[]{};
+
+            var newLines = new List<byte[]>(newHeight);
+
+            var skippedLines = 0; //'UNIT'TEST
+            for (var inLine = 0; inLine < oldHeight; inLine++)
+            {
+                // If shrinking skip 'extralines' lines on the centerline and above
+                if (extraLines < 0 && inLine >= centreLine + extraLines && inLine < centreLine)
+                {
+                    skippedLines++;
+                    continue;
+                }
+
+                var newLine = StretchLine(orgLines[inLine], oldWidth, newWidth);
+                newLines.Add(newLine);
+
+                // If expanding, duplicate the right amount of lines before centreLine
+                if (extraLines <= 0 || inLine < centreLine - extraLines || inLine >= centreLine)
+                    continue;
+
+                newLines.Add(newLine);
+                skippedLines--;
+            }
+            Trace.Assert(newLines.Count == newHeight);
+            Trace.Assert(skippedLines == -extraLines);
 
             var nextLineStart = newLineDataStart;
 
-            if (extraLines >= 0)
+            foreach (var newLine in newLines)
             {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    writer.Write(nextLineStart);
-                    nextLineStart += lineSizes[inLine];
-
-                    if (inLine != centreLine)
-                        continue;
-
-                    for (var el = 0; el < extraLines; el++)
-                    {
-                        writer.Write(nextLineStart);
-                        nextLineStart += lineSizes[inLine];
-                    }
-                }
-            }
-            else
-            {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    // Skip 'extralines' lines on the centerline and above
-                    if (inLine >= centreLine + extraLines && inLine < centreLine)
-                        continue;
-
-                    writer.Write(nextLineStart);
-                    nextLineStart += lineSizes[inLine];
-                }
+                writer.Write(nextLineStart);
+                nextLineStart += (uint)newLine.Length;
             }
 
             osp = outStream.Position;
             Trace.Assert(newLineDataStart == osp);
 
-            if (extraLines >= 0)
-            {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    var lineData = reader.ReadBytes((int) lineSizes[inLine]);
-                    writer.Write(lineData);
-
-                    if (inLine != centreLine)
-                        continue;
-
-                    for (var el = 0; el < extraLines; el++)
-                        writer.Write(lineData);
-                }
-            }
-            else
-            {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    var lineData = reader.ReadBytes((int)lineSizes[inLine]);
-
-                    // Skip 'extralines' lines on the centerline and above
-                    if (inLine >= centreLine + extraLines && inLine < centreLine)
-                        continue;
-
-                    writer.Write(lineData);
-                }
-            }
+            foreach (var newLine in newLines)
+                writer.Write(newLine);
 
             Trace.Assert(outStream.Position == nextLineStart);
 
@@ -174,6 +157,52 @@ namespace AoE2Wide
             //File.WriteAllBytes(string.Format(@"slp\{0}new.slp", id), newSlp);
 
             return newSlp;
+        }
+
+        private static byte[] BlitColor(int amount, byte color)
+        {
+            if (amount <=0)
+                return null;
+
+            using (var outStream = new MemoryStream())
+            {
+                while (amount > 15)
+                {
+                    var count = Math.Min(amount, 255);
+                    outStream.WriteByte(7);
+                    outStream.WriteByte((byte) count);
+                    outStream.WriteByte(color);
+                    amount -= count;
+                }
+                while (amount > 0)
+                {
+                    var count = Math.Min(amount, 15);
+                    outStream.WriteByte((byte) (7 | (count << 8)));
+                    outStream.WriteByte(color);
+                    amount -= count;
+                }
+                return outStream.ToArray();
+            }
+        }
+
+        private static byte[] StretchLine( byte[] orgLine, int oldWidth, int newWidth)
+        {
+            if (orgLine.Length == 1)
+                return orgLine;
+
+            // Take the last byte before the 0x0F eol as color (I suppose that's always a color :S )
+            var color = orgLine[orgLine.Length - 2];
+            var addendum = BlitColor(newWidth - oldWidth, color);
+            if (addendum == null || addendum.Length == 0)
+                return orgLine;
+
+            using (var outStream = new MemoryStream(orgLine.Length + addendum.Length))
+            {
+                outStream.Write(orgLine,0, orgLine.Length - 1);
+                outStream.Write(addendum, 0, addendum.Length);
+                outStream.WriteByte(orgLine[orgLine.Length - 1]);
+                return outStream.ToArray();
+            }
         }
     }
 }
