@@ -28,7 +28,7 @@ namespace AoE2Wide
             System.IO.File.WriteAllText(@"..\Data\output.txt", sb.ToString());
         }
 
-        public static IEnumerable<Item> ReadPatch( string patchFile )
+        public static IEnumerable<Item> ReadPatch(string patchFile)
         {
             var items = new List<Item>(1024);
             var lines = System.IO.File.ReadAllLines(patchFile);
@@ -41,7 +41,7 @@ namespace AoE2Wide
                 if (words.Length < 3)
                     continue;
                 if (
-                    !words[2].Equals("H") && 
+                    !words[2].Equals("H") &&
                     !words[2].Equals("V") &&
                     !words[2].Equals("dH") &&
                     !words[2].Equals("dV") &&
@@ -66,16 +66,16 @@ namespace AoE2Wide
 
         static public void PatchDrsRefInExe(byte[] exe, string newInterfaceDrsName)
         {
-                var drsPos = 0x0027BE90;
-                if (exe[drsPos] != 'i')
-                    throw new FatalError(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
+            var drsPos = 0x0027BE90;
+            if (exe[drsPos] != 'i')
+                throw new FatalError(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
 
-                var newBytes = Encoding.ASCII.GetBytes(newInterfaceDrsName);
-                foreach (var byt in newBytes)
-                {
-                    exe[drsPos] = byt;
-                    drsPos++;
-                }
+            var newBytes = Encoding.ASCII.GetBytes(newInterfaceDrsName);
+            foreach (var byt in newBytes)
+            {
+                exe[drsPos] = byt;
+                drsPos++;
+            }
         }
 
         static public void PatchResolutions(byte[] exe, int oldWidth, int oldHeight, int newWidth, int newHeight, IEnumerable<Item> patch)
@@ -83,30 +83,26 @@ namespace AoE2Wide
             // Create the map so, that originally larger resolutions stay larger even after patching. They _may_ become invalid though.
             // This is necessary to keep the internal (in AoE) if > else if > else if > code working.
             var hmap = new Dictionary<int, int>();
-            var vmap = new Dictionary<int, int>();
-            var existingWidths = new int[] { 640, 800, 1024, 1280, 1600 };
-            var existingHeights = new int[] { 480, 600, 768, 1024, 1200 };
-            var wshift = 1;
-            var hshift = 1;
+            var existingWidths = new[] { 800, 1024, 1280, 1600 };
+            var wshift = newWidth;
             foreach (var w in existingWidths)
             {
-                if (w > oldWidth && w <= newWidth)
-                {
-                    hmap[w] = newWidth + wshift;
-                    wshift++;
-                }
-            }
-            foreach (var h in existingHeights)
-            {
-                if (h > oldHeight && h <= newHeight)
-                {
-                    vmap[h] = newHeight + hshift;
-                    hshift++;
-                }
+                if (w == oldWidth)
+                    hmap[w] = newWidth;
+                else if (w > oldWidth)
+                    hmap[w] = ++wshift;
             }
 
-            hmap[oldWidth] = newWidth;
-            vmap[oldHeight] = newHeight;
+            var vmap = new Dictionary<int, int>();
+            var existingHeights = new[] { 600, 768, 1024, 1200 };
+            var hshift = newHeight;
+            foreach (var h in existingHeights)
+            {
+                if (h == oldHeight)
+                    vmap[h] = newHeight;
+                else if (h > oldHeight)
+                    vmap[h] = ++hshift;
+            }
 
             foreach (var pair in hmap)
                 UserFeedback.Trace(string.Format(@"Horizontal {0} => {1}", pair.Key, pair.Value));
@@ -123,17 +119,20 @@ namespace AoE2Wide
 
                 // If a number is used for both horizontal and vertical
                 //  prefer the one that we are patching.
-                if(hor && ver)
+                if (hor && ver)
                 {
                     if (oldWidth == oldValue) // so if we have 1024 HV, and are patching 1024x768, we'd ignore the V, and use the H
                         ver = false;
                     else
                         hor = false;
                 }
-                Debug.Assert(hor || ver);
+                Trace.Assert(hor || ver);
                 var map = ver ? vmap : hmap;
                 if (!map.TryGetValue(oldValue, out newValue))
                     newValue = oldValue;
+
+                if (item.Type.Contains("H") && item.Type.Contains("V"))
+                    UserFeedback.Trace(string.Format(@"{0} HV: Mapping to {1}", oldValue, newValue));
 
                 var ob0 = (int)exe[item.Pos];
                 var ob1 = (int)exe[item.Pos + 1];
