@@ -262,13 +262,25 @@ namespace AoE2Wide
 
         private static void GetOldWidthHeight(int newWidth, int newHeight, out int oldWidth, out int oldHeight)
         {
-            // Temp ?? if width >= 1280, use 1280x1024 as source even if newHeight is smaller (scale down then)
-            if (newWidth >= 1280)
+            // Arbitrary threshold: (allows for a bit of vertical shrinkage, but no horizontal)
+            if (newWidth >= 1280 && newHeight >= 960)
             {
                 oldWidth = 1280;
                 oldHeight = 1024;
                 return;
             }
+
+            // Can't vertically scale yet in 800x600, so only PREFER 800x600 if Ht == 600 or Wd too small for 1024 (hor shr not possible)
+            if (newWidth < 1024 || newHeight == 600)
+            {
+                oldWidth = 800;
+                oldHeight = 600;
+                return;
+            }
+
+            oldWidth = 1024;
+            oldHeight = 768;
+            return;
 
             // The only-up code: 1024x768 or 800x660 doesn't work well atm.
             var widths = new[] { 800, 1024, 1280 };
