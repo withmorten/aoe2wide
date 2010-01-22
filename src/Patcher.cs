@@ -112,6 +112,11 @@ namespace AoE2Wide
 
             foreach (var item in patch)
             {
+                if (item.Pos >= exe.Length)
+                {
+                    UserFeedback.Warning(@"Error in input: Invalid location {0:X8}. [NOT PATCHED]", item.Pos);
+                    continue;
+                }
                 var oldValue = item.OriginalValue;
                 int newValue;
                 var hor = item.Type.Contains("H");
