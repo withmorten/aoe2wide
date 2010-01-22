@@ -876,16 +876,28 @@
 000E13E3 600
 
 000E292B 1280 H test set choose gfx
-000E2947 1280 H width of smth
+000E2947 1280 H width of some alt. to playground (30 top lines under gui)
+000E295C 1024 dV 744 height of pt 2 of alt to playground
 000E296E 1024 dV 774 height of playground
 000E2973 1280 H width of playground
+000E299D 1024 -dV 192 Height of map
+000E29A2 1280 -dH 394 width of map
 000E29A7 1024 dV 817 Y of map
 000E29AE 1280 -dH 868 X of map
 
-000E2A1E 1280 -dH 375 Y of center items
+000E29D3 1280 -dH 322 Width X of 'current age' text (centered)
+000E29DC 1280 -dH 521 Start X of 'current age' text (centered)
+000E29EC 1280 -dH 322 Width X of 'current age' progress bg (centered)
+000E29F5 1280 -dH 521 Start X of 'current age' progress bg (centered)
+
+000E2A1E 1280 -dH 375 W of center items ??????
 000E2A23 1024 dV 827 Y of center items
+000E2A2A 1280 -dH 339 X of center items
 
 000E2A32 1024 dV 845 Y of left items
+000E2A3D 1280 -dD 44 X of left items
+000E2A5F 1280 -dH 249 MAX x of left items
+000E2A6A 1024 dV 968 MAX Y of left items (the reason that vertical MINIMIZING didn't work I think)
 
 000E2B71 1280 dH 1019 X of topright menu
 000E2B87 1280 dH 1069 X of topright menu 2
@@ -917,12 +929,44 @@
 000E2C8A 1024 dV 979 Y of bottomright btn 8
 000E2C91 1280 -dH 1145 X of bottomright btn 8
 
-000E2C9B 1024 H test set choose gfx
-000E2CB7 1024 H test set choose gfx
-000E2CE3 1024 H test set choose gfx
+000E2C9B 1024 H test for resolution (draw routine)
+
+000E2CB7 1024 H W of alt to playground
+000E2CCC 768 dV 538 Ht of alt to playground
+
+000E2CDE 768 dV 568 H of playground
+000E2CE3 1024 H W of playground
+
+000E2D17 768 dV 599 Y of map
+000E2D1E 1024 -dH 688 X of map
+
+000E2D8E 1024 -dH 375 W of center items ??????
+000E2D93 768 dV 616 Y of center items
+000E2D9A 1024 -dH 286 X of center items
+
+000E2DA2 768 dV 624 Y of left items
+000E2DAD 1024 -dH 37 X of left items
+000E2DCF 1024 -dH 242 MAX x of left items
+000E2DDA 768 dV 747 MAX Y of left items
+
+000E2EE1 1024 dH 764 X of topright menu 1
+000E2EF7 1024 dH 814 X of topright menu 2
+000E2F0D 1024 dH 864 X of topright menu 3
+000E2F23 1024 dH 914 X of topright menu 4
+000E2F39 1024 dH 964 X of topright menu 5
+
+000E2F4B 768 dV 614 Y of btmright btn 1
+000E2F64 768 dV 719 Y of btmright btn 2
+000E2F7D 768 dV 612 Y of btmright btn 3
+000E2F96 768 dV 606 Y of btmright btn 4
+000E2FAF 768 dV 631 Y of btmright btn 5
+000E2FC8 768 dV 709 Y of btmright btn 6
+000E2FE1 768 dV 733 Y of btmright btn 7
+000E2FFA 768 dV 729 Y of btmright btn 8
+
 000E300E 800 H test set choose gfx
-000E302A 800 H test set choose gfx
-000E3056 800 H test set choose gfx
+000E302A 800 H Width of alt playfield
+000E3056 800 H Width of playfield
 000E327D 640
 000E3326 768
 000E333F 768
