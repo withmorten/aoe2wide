@@ -20,7 +20,7 @@ namespace AoE2Wide
                 return data;
 
             var comment = reader.ReadBytes(24);
-            var linesOffset = reader.ReadUInt32();
+            /*var linesOffset = */reader.ReadUInt32();
             var maskOffset = reader.ReadUInt32();
             var paletteOffset = reader.ReadUInt32();
             var properties = reader.ReadUInt32();
@@ -51,8 +51,8 @@ namespace AoE2Wide
             writer.Write(maskOffset);
             writer.Write(paletteOffset);
             writer.Write(properties);
-            writer.Write((Int32) newWidth);
-            writer.Write((Int32) newHeight);
+            writer.Write(newWidth);
+            writer.Write(newHeight);
             writer.Write(centerX);
             writer.Write(centerY);
 

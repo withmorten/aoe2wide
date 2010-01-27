@@ -119,9 +119,7 @@ namespace AoE2Wide
             return false;
         }
 
-        private static bool _isVistaOrHigher = Environment.OSVersion.Version.Major >= 6;
-        private static bool _isSevenOrHigher =
-            Environment.OSVersion.Version.Major >= 7 || Environment.OSVersion.Version.Major == 6 && Environment.OSVersion.Version.Minor >= 1;
+        private static readonly bool IsVistaOrHigher = Environment.OSVersion.Version.Major >= 6;
 
         [STAThread]
         static void Main(string[] args)
@@ -387,7 +385,7 @@ namespace AoE2Wide
                     UserFeedback.Trace(@"Writing convenience batch file '{0}'", batchName);
                     var batContent = new List<string> {@"@echo off"};
 
-                    if (_isVistaOrHigher)
+                    if (IsVistaOrHigher)
                     {
 
                         batContent.Add(
@@ -399,7 +397,7 @@ namespace AoE2Wide
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
                     batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
 
-                    if (_isVistaOrHigher)
+                    if (IsVistaOrHigher)
                     {
                         batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
                         batContent.Add(@"start %systemroot%\explorer.exe");
@@ -423,7 +421,7 @@ namespace AoE2Wide
                                              string.Format("cd \"{0}\"", _gameDirectory)
                                          };
 
-                    if (_isVistaOrHigher)
+                    if (IsVistaOrHigher)
                     {
                         batContent.Add(
                             @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)");
@@ -434,7 +432,7 @@ namespace AoE2Wide
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
                     batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
 
-                    if (_isVistaOrHigher)
+                    if (IsVistaOrHigher)
                     {
                         batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
                         batContent.Add(@"start %systemroot%\explorer.exe");
