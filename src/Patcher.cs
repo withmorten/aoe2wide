@@ -1,10 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace AoE2Wide
 {
+    internal struct Item
+    {
+        public int Pos;
+        public int ReferenceValue;
+        public string Type;
+        public string Comments;
+        public int OriginalPos;
+    }
+
+    class Patch
+    {
+        public int FileSize;
+        public string Md5;
+        public string Version;
+        public int InterfaceDrsPosition;
+        public IEnumerable<Item> Items;
+    }
+
     static class Patcher
     {
         static readonly uint[] Resolutions = new uint[] { 200, 320, 480, 640, 600, 768, 800, 1024, 1200, 1280, 1600 };
@@ -28,13 +47,38 @@ namespace AoE2Wide
             System.IO.File.WriteAllText(@"..\Data\output.txt", sb.ToString());
         }
 
-        public static IEnumerable<Item> ReadPatch(string patchFile)
+        public static Patch ReadPatch(string patchFile)
         {
             var items = new List<Item>(1024);
             var lines = System.IO.File.ReadAllLines(patchFile);
             var usedLines = new List<string>(lines.Length);
+            var patch = new Patch();
+
             foreach (var line in lines)
             {
+                if (line.StartsWith("size="))
+                {
+                    patch.FileSize = int.Parse(line.Substring(5));
+                    continue;
+                }
+                if (line.StartsWith("md5="))
+                {
+                    patch.Md5 = line.Substring(4);
+                    continue;
+                }
+                if (line.StartsWith("version="))
+                {
+                    patch.Version = line.Substring(8);
+                    continue;
+                }
+                if (line.StartsWith("drspos="))
+                {
+                    patch.InterfaceDrsPosition = int.Parse(line.Substring(7),System.Globalization.NumberStyles.HexNumber);
+                    continue;
+                }
+
+                if (line.StartsWith("["))
+                    continue;
                 if (line.StartsWith("#"))
                     continue;
                 var words = line.Split(new[] { ' ' }, 4);
@@ -52,21 +96,22 @@ namespace AoE2Wide
                 var item = new Item
                                {
                                    Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
-                                   OriginalValue = int.Parse(words[1]),
+                                   ReferenceValue = int.Parse(words[1]),
                                    Type = words[2]
                                };
+                item.OriginalPos = item.Pos;
                 if (words.Length == 4)
                     item.Comments = words[3];
                 items.Add(item);
                 usedLines.Add(line);
             }
-            System.IO.File.WriteAllLines(@"AoE2Wide.dat.asused", usedLines.ToArray());
-            return items;
+            patch.Items = items;
+            return patch;
         }
 
-        static public void PatchDrsRefInExe(byte[] exe, string newInterfaceDrsName)
+        static public void PatchDrsRefInExe(byte[] exe, string newInterfaceDrsName, Patch patch)
         {
-            var drsPos = 0x0027BE90;
+            var drsPos = patch.InterfaceDrsPosition;
             if (exe[drsPos] != 'i')
                 throw new FatalError(@"Didn't find interfac.drs reference at expected location. Wrong exe.");
 
@@ -78,7 +123,149 @@ namespace AoE2Wide
             }
         }
 
-        static public void PatchResolutions(byte[] exe, int oldWidth, int oldHeight, int newWidth, int newHeight, IEnumerable<Item> patch)
+        private static IEnumerable<string> StringifyPatch(Patch patch)
+        {
+            return patch.Items.Select(item => string.Format(@"{4}{0:X8} {1} {2} {3} [rootPos: {5:X8}, offset {6}]", item.Pos, item.ReferenceValue, item.Type, item.Comments, item.Pos < 0 ? "!!!" : "", item.OriginalPos, item.Pos - item.OriginalPos));
+        }
+
+        static public void WritePatch(Patch patch, string filePath)
+        {
+            var header = new List<string>
+                             {
+                                 @"[header]",
+                                 string.Format(@"size={0}", patch.FileSize),
+                                 string.Format(@"md5={0}", patch.Md5),
+                                 string.Format(@"version={0}", patch.Version),
+                                 string.Format(@"drspos={0:X8}", patch.InterfaceDrsPosition),
+                                 @"[data]"
+                             };
+
+            var patchLines = StringifyPatch(patch);
+            header.AddRange(patchLines);
+
+            System.IO.File.WriteAllLines(filePath, header.ToArray());
+        }
+
+        static public Patch ConvertPatch(byte[] rootExe, byte[] otherExe, Patch patch)
+        {
+            return new Patch
+                       {
+                           InterfaceDrsPosition =
+                               FindComparablePos(rootExe, otherExe, patch.InterfaceDrsPosition),
+                           Items = patch.Items.Select(item => new Item
+                                                                  {
+                                                                      Pos =
+                                                                          FindComparablePos(rootExe, otherExe,
+                                                                                            item.Pos),
+                                                                      Comments = item.Comments,
+                                                                      ReferenceValue = item.ReferenceValue,
+                                                                      Type = item.Type,
+                                                                      OriginalPos = item.Pos
+                                                                  }).ToArray()
+                       };
+        }
+
+        private static int FindComparablePos(byte[] correctExe, byte[] otherExe, int pos)
+        {
+            for (var windowSize = 4; windowSize < 25; windowSize += 4)
+            {
+                var window = new byte[windowSize];
+                var startOffset = 0;
+                if (startOffset + pos < 0)
+                    startOffset = -pos;
+                if ((startOffset + windowSize) >= correctExe.Length)
+                    startOffset = correctExe.Length - (pos + windowSize);
+
+                for (var i = 0; i < windowSize; i++)
+                    window[i] = correctExe[i + pos + startOffset];
+
+                var positions = FindWindow(otherExe, window).ToArray();
+
+                if (positions.Length == 1)
+                    return positions[0] - startOffset;
+
+                if (positions.Length == 0)
+                {
+                    if (windowSize == 8 && startOffset == 0)
+                    {
+                        startOffset = -4;
+                        for (var i = 0; i < windowSize; i++)
+                            window[i] = correctExe[i + pos + startOffset];
+
+                        positions = FindWindow(otherExe, window).ToArray();
+                        if (positions.Length == 1)
+                            return positions[0] - startOffset;
+                    }
+                    UserFeedback.Warning(string.Format(@"Found no matches for block {0:X8} {1}", pos, windowSize));
+                    return -pos;
+                }
+            }
+
+            UserFeedback.Warning("Found too many matches for block {0:X8}", pos);
+            return -pos;
+        }
+
+        private static IEnumerable<int> FindWindow(byte[] otherExe, byte[] window)
+        {
+            for (var i = 0; i <= otherExe.Length - window.Length; i++)
+            {
+                if (!Equals(window, otherExe, i))
+                    continue;
+                yield return i;
+            }
+        }
+
+        private static bool Equals(byte[] window, byte[] otherExe, int pos)
+        {
+            var errors = new List<int>();
+            var maxErrors = window.Length / 3;
+
+            for (var i = 0; i < window.Length; i++)
+            {
+                if (window[i] == otherExe[pos + i])
+                    continue;
+
+                // If the first 4 bytes (the key dword PLUS the first opcode) are wrong, cancel.
+                if (i < 5)
+                    return false;
+
+                if (errors.Count >= maxErrors)
+                    return false;
+
+                errors.Add(i);
+            }
+
+            // No errors? OK
+            if (errors.Count == 0)
+                return true;
+
+            foreach (var errByte in errors)
+            {
+                for (var back = 1; ; back++)
+                {
+                    var backPos = errByte - back;
+
+                    // The opcode-to-test cannot exist in the key dword bytes
+                    if (backPos < 4)
+                        return false; // unaccepted error
+
+                    var backByte = window[errByte - back];
+
+                    if (backByte == 0xE8) // Call
+                        break; // accepted error
+
+                    if (backByte == 0xE9) // LongJmp
+                        break; // accepted error
+
+                    // Loop end condition
+                    if (back == 4)
+                        return false; // Unaccepted error
+                }
+            }
+            return true;
+        }
+
+        static public void PatchResolutions(byte[] exe, int oldWidth, int oldHeight, int newWidth, int newHeight, Patch patch)
         {
             // Create the map so, that originally larger resolutions stay larger even after patching. They _may_ become invalid though.
             // This is necessary to keep the internal (in AoE) if > else if > else if > code working.
@@ -110,14 +297,14 @@ namespace AoE2Wide
             foreach (var pair in vmap)
                 UserFeedback.Trace(string.Format(@"Vertical {0} => {1}", pair.Key, pair.Value));
 
-            foreach (var item in patch)
+            foreach (var item in patch.Items)
             {
                 if (item.Pos >= exe.Length)
                 {
                     UserFeedback.Warning(@"Error in input: Invalid location {0:X8}. [NOT PATCHED]", item.Pos);
                     continue;
                 }
-                var oldValue = item.OriginalValue;
+                var oldValue = item.ReferenceValue;
                 int newValue;
                 var hor = item.Type.Contains("H");
                 var ver = item.Type.Contains("V");
@@ -192,12 +379,5 @@ namespace AoE2Wide
             }
         }
 
-        internal struct Item
-        {
-            public int Pos;
-            public int OriginalValue;
-            public string Type;
-            public string Comments;
-        }
     }
 }
