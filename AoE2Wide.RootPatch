@@ -1,21 +1,9 @@
-#PATCH file for  8/08/2000   1:13       2,695,213  age2_x1.exe
-#1st parameter is the position in the file (of the first byte OUT OF 4)
-#2nd parameter is (if H, V, HV) the number found at that location or (if dH, dV) the resolution the number found at that pos is related to.
-#  e.g. 'last line number' or so would be 00010101 1024 dV 1023  (1023 is the last line number related to 1024 height). Will be patched to 1049 if newHeight = 1050, for example
-#3rd parameter:
-# H is 'horizontal'
-# V is 'vertical'
-# HV is 'horizontal and vertical' (patched as vertical ... (sic) )
-# dH is 'horizontal - related value' (follow by original value pls)
-# dV is 'vertical - related value' (follow by original value pls)
-# -prefix is 'commented out' version of the above (eg. -dH  because the GUI image is not yet horizontally scaled)
-# X is 'not relevant'
-# ? is 'not checked'
-# * is candidate
-#   'Nothing' is same as ?
-#4th parameter is a comment OR (dH dV) the actual value (for checking, helps you prevent mistakes)
-#5+th parameter is comment
-#the USED values will be dumped into AoE2Wide.dat.used : also to help you.
+[header]
+size=2695213
+md5=0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25
+version=1.0
+drspos=0027BE90
+[data]
 000017B7 600 X
 00001818 600 X
 00001BED 600 X

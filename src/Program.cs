@@ -22,24 +22,38 @@ namespace AoE2Wide
         /// 
         private static string _orgDrsPath;
         private static string _orgExePath;
-        private static string _patchFilePath;
         private static string _gameDirectory;
 
         private static string FindPatchFile()
         {
-            const string fileName = @"AoE2Wide.dat";
+            const string fileName = @"AoE2Wide*.patch";
             const string whatFile = @"Patch data";
             return FindFile(whatFile, fileName, null, null);
         }
 
-        private static string FindExeFile()
+        private static string[] FindPatchFiles()
         {
-            const string fileName = @"age2_x1*.exe";
-            const string whatFile = @"original exe";
-            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
+            const string fileName = @"AoE2Wide*.patch";
+            const string whatFile = @"Patch data";
+            return FindFiles(whatFile, fileName, null, null);
         }
 
-        private static string FindFile(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
+        private static string FindRootPatchFile()
+        {
+            const string fileName = @"AoE2Wide.RootPatch";
+            const string whatFile = @"Root Patch data";
+            return FindFile(whatFile, fileName, null, null);
+        }
+
+        private static string FindExeFile( int fileSize, string md5 )
+        {
+            const string fileName = @"age2_x1*.exe";
+            const string whatFile = @"unpatched exe";
+            return FindFile(whatFile, fileName, fileSize, md5);
+//            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
+        }
+
+        private static string[] FindFiles(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
         {
             UserFeedback.Trace(string.Format(@"Locating {0} file '{1}'", whatFile, fileName));
             var files = Directory.GetFiles(_gameDirectory, fileName, SearchOption.AllDirectories);
@@ -52,8 +66,13 @@ namespace AoE2Wide
 
             if (files.Length == 0)
                 throw new FatalError(string.Format(@"No correct {0} found in current directory or subdirectories",
-                                                  whatFile));
+                                                   whatFile));
+            return files;
+        }
 
+        private static string FindFile(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
+        {
+            var files = FindFiles(whatFile, fileName, expectedSize, expectedHash);
             if (files.Length > 1)
             {
                 UserFeedback.Warning(
@@ -79,6 +98,12 @@ namespace AoE2Wide
             using (var stream = File.OpenRead(file))
                 using (var md5 = MD5.Create())
                     return BitConverter.ToString(md5.ComputeHash(stream));
+        }
+
+        private static string GetChecksum(byte[] data)
+        {
+            using (var md5 = MD5.Create())
+                return BitConverter.ToString(md5.ComputeHash(data));
         }
 
         private static bool IsFileHashCorrect(string fn, string expectedHash)
@@ -111,52 +136,169 @@ namespace AoE2Wide
         static void Go(string[] args)
         {
             _gameDirectory = FindGameDirectory();
-            _patchFilePath = FindPatchFile();
-            _orgExePath = FindExeFile();
-            _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
-
-            if (!File.Exists(_orgDrsPath))
-                throw new FatalError(string.Format(@"Cannot find drs file '{0}' in current folder", _orgDrsPath));
-
-            switch (args.Length)
+            if (args.Length == 1)
             {
-                case 0:
+                if (args[0].Equals("createpatches"))
+                {
+                    var allExes = FindFiles(@"AoK-TC executables", @"age2_x1*.exe", null, null);
+                    var allPatchedExes = new List<string>();
+                    try
                     {
-                        UserFeedback.Info(
-                            "Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
-                        var doneList = new HashSet<int>();
-                        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-                        {
-                            try
-                            {
-                                var newWidth = screen.Bounds.Width;
-                                var newHeight = screen.Bounds.Height;
-                                var key = newWidth + (newHeight * 65536);
-                                if (doneList.Add(key))
-                                    MakePatch(newWidth, newHeight);
-                            }
-                            catch (Exception e)
-                            {
-                                UserFeedback.Error(e);
-                            }
-                        }
+                        allPatchedExes = new List<string>(FindFiles(@"Patched executables", @"age2_x1*_???*x???*.exe", null, null));
                     }
-                    break;
-                case 2:
+                    catch (FatalError)
                     {
-                        int newWidth, newHeight;
-                        if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
-                        {
-                            ShowUsage();
-                            return;
-                        }
+                        // Happens if no patched exes are found. No problem!
+                    }
 
-                        MakePatch(newWidth, newHeight);
+                    foreach (var exe in allExes)
+                    {
+                        if (allPatchedExes.Contains(exe))
+                        {
+                            UserFeedback.Trace(@"Skipping patched exe '{0}'", exe);
+                            continue;
+                        }
+                        
+                        ConvertPatchFile(exe);
                     }
-                    break;
-                default:
+                }
+                else
+                {
                     ShowUsage();
-                    break;
+                }
+                return;
+            }
+
+            var patchFilePaths = FindPatchFiles();
+            foreach (var patchFilePath in patchFilePaths)
+            {
+                UserFeedback.Trace("Reading the patch file '{0}'", patchFilePath);
+                var patch = Patcher.ReadPatch(patchFilePath);
+
+                _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
+                _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
+
+                if (!File.Exists(_orgDrsPath))
+                    throw new FatalError(string.Format(@"Cannot find drs file '{0}' in current folder", _orgDrsPath));
+
+                switch (args.Length)
+                {
+                    case 0:
+                        {
+                            UserFeedback.Info(
+                                "Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                            var doneList = new HashSet<int>();
+                            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                            {
+                                try
+                                {
+                                    var newWidth = screen.Bounds.Width;
+                                    var newHeight = screen.Bounds.Height;
+                                    var key = newWidth + (newHeight*65536);
+                                    if (doneList.Add(key))
+                                        PatchExecutable(newWidth, newHeight, patch);
+                                }
+                                catch (Exception e)
+                                {
+                                    UserFeedback.Error(e);
+                                }
+                            }
+                        }
+                        break;
+                    case 2:
+                        {
+                            int newWidth, newHeight;
+                            if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
+                            {
+                                ShowUsage();
+                                return;
+                            }
+
+                            PatchExecutable(newWidth, newHeight, patch);
+                        }
+                        break;
+                    default:
+                        ShowUsage();
+                        break;
+                }
+            }
+        }
+
+        private static void ConvertPatchFile(string otherExe)
+        {
+            UserFeedback.Info(@"Converting RootPatch file to a patch file for '{0}'", otherExe);
+            var rootPatchFilePath = FindRootPatchFile();
+
+            UserFeedback.Trace(@"Reading the root patch file");
+            var patch = Patcher.ReadPatch(rootPatchFilePath);
+
+            UserFeedback.Trace(@"Locating the root executable file");
+            var rootExePath = FindExeFile(patch.FileSize, patch.Md5);
+
+            UserFeedback.Trace(@"Reading the target executable");
+            var exe2 = File.ReadAllBytes(otherExe);
+
+            UserFeedback.Trace(@"Reading root executable");
+            var exe1 = File.ReadAllBytes(rootExePath);
+
+            var md5 = GetChecksum(exe2);
+
+            UserFeedback.Trace(@"Detecting version from filename and/or md5");
+            string version = GetVersion(otherExe, md5);
+            UserFeedback.Trace(@"Version: '{0}'", version);
+
+            var rootMd5 = GetChecksum(exe1);
+            Patch newPatch;
+            if (rootMd5.Equals(md5))
+            {
+                UserFeedback.Trace(@"Executable is equal; leaving patch file as-is");
+                newPatch = new Patch
+                               {
+                                   FileSize = patch.FileSize,
+                                   InterfaceDrsPosition = patch.InterfaceDrsPosition,
+                                   Items = patch.Items,
+                                   Md5 = patch.Md5
+                               };
+            }
+            else
+            {
+                UserFeedback.Trace(@"Locating comparable locations, this may take a while");
+                newPatch = Patcher.ConvertPatch(exe1, exe2, patch);
+                newPatch.FileSize = exe2.Length;
+                newPatch.Md5 = md5;
+            }
+            newPatch.Version = version;
+
+            var patchFileName = @"AoE2Wide_" + version + @".patch";
+
+            var patchOutput = Path.Combine(Path.GetDirectoryName(otherExe), patchFileName);
+            UserFeedback.Trace("Writing the patch file '{0}'", patchOutput);
+            Patcher.WritePatch(newPatch, patchOutput);
+        }
+
+        private static string GetVersion(string otherExe, string md5)
+        {
+            var version = Path.GetFileNameWithoutExtension(otherExe);
+            version = version.Replace("age2_x1", "");
+
+            while (version.Length > 0 && version[0] == '_')
+                version = version.Substring(1);
+
+            if (version.Length > 0)
+                return version;
+
+            switch (md5)
+            {
+                case "CB-15-BC-FA-FF-FB-C3-BA-80-F3-07-D4-1F-50-E5-46":
+                    return "1.0e";
+
+                case "F2-72-38-DF-A1-C3-EC-44-41-52-C8-5F-01-AF-30-A0":
+                    return "1.0c";
+
+                case "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25":
+                    return "1.0";
+                    default:
+                    return md5.Replace("-", "");
             }
         }
 
@@ -178,9 +320,11 @@ namespace AoE2Wide
         {
             UserFeedback.Warning("Usage: aoe2wide.exe [width height]");
             UserFeedback.Info("If the new width and height are omitted, the current screen resolution(s) will be used.");
+            UserFeedback.Trace("Alternatively, use: aoe2wide.exe createpatches");
+            UserFeedback.Trace("  to try to create fresh patch files for all your age2_x1 executables, from the RootPatch file");
         }
 
-        private static void MakePatch(int newWidth, int newHeight)
+        private static void PatchExecutable(int newWidth, int newHeight, Patch patch)
         {
             try
             {
@@ -192,18 +336,18 @@ namespace AoE2Wide
                 UserFeedback.Trace(@"Reading original executable");
                 var exe = File.ReadAllBytes(_orgExePath);
 
+                var versionString = patch.Version.Length == 0 ? "" : patch.Version + "_";
+
                 var newDrsName = Path.Combine(Path.Combine(_gameDirectory, @"Data"), string.Format(@"{0:D4}{1:D4}.drs", newWidth, newHeight));
-                var newExeName = Path.Combine(Path.GetDirectoryName(_orgExePath),
-                                              string.Format(@"age2_x1_{0}x{1}.exe", newWidth, newHeight));
+                var newExeName = Path.Combine(_gameDirectory,
+                                              string.Format(@"age2_x1_{2}{0}x{1}.exe", newWidth, newHeight,
+                                                            versionString));
 
                 //Trace(@"Writing file with all occurrences of resolutions");
                 //Patcher.ListEm(bytes);
 
-                UserFeedback.Trace("Reading the patch file");
-                var patch = Patcher.ReadPatch(_patchFilePath);
-
                 UserFeedback.Trace("Patching the executable: DRS reference");
-                Patcher.PatchDrsRefInExe(exe, Path.GetFileName(newDrsName));
+                Patcher.PatchDrsRefInExe(exe, Path.GetFileName(newDrsName), patch);
 
                 UserFeedback.Trace("Patching the executable: resolutions");
                 Patcher.PatchResolutions(exe, oldWidth, oldHeight, newWidth, newHeight, patch);
@@ -211,19 +355,27 @@ namespace AoE2Wide
                 UserFeedback.Trace(string.Format(@"Writing the patched executable '{0}'", newExeName));
                 File.WriteAllBytes(newExeName, exe);
 
-                UserFeedback.Trace(@"Opening original interfac.drs");
-                using (
-                    var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
-                                                      FileSystemRights.ReadData,
-                                                      FileShare.Read, 1024 * 1024, FileOptions.SequentialScan))
+                if (File.Exists(newDrsName))
                 {
-                    UserFeedback.Trace(string.Format(@"Creating patched drs file '{0}'", newDrsName));
+                    UserFeedback.Info(@"Patched drs file '{0}' exists already, skipping.", newDrsName);
+                }
+                else
+                {
+                    UserFeedback.Trace(@"Opening original interfac.drs");
                     using (
-                        var newDrs = new FileStream(newDrsName, FileMode.Create, FileSystemRights.Write, FileShare.None,
-                                                    1024 * 1024, FileOptions.SequentialScan))
+                        var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
+                                                          FileSystemRights.ReadData,
+                                                          FileShare.Read, 1024*1024, FileOptions.SequentialScan))
                     {
-                        UserFeedback.Trace(@"Patching DRS");
-                        DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
+                        UserFeedback.Trace(@"Creating patched drs file '{0}'", newDrsName);
+                        using (
+                            var newDrs = new FileStream(newDrsName, FileMode.Create, FileSystemRights.Write,
+                                                        FileShare.None,
+                                                        1024*1024, FileOptions.SequentialScan))
+                        {
+                            UserFeedback.Trace(@"Patching DRS");
+                            DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
+                        }
                     }
                 }
 
