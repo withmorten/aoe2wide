@@ -59,9 +59,6 @@ namespace AoE2Wide
             var osp = outStream.Position;
             Trace.Assert(osp == maskOffset);
 
-            var extraLines = newHeight - oldHeight;
-            var centreLine = oldHeight/2;
-
             var orgLineMasks = new UInt32[oldHeight];
             for (var inLine = 0; inLine < oldHeight; inLine++)
                 orgLineMasks[inLine] = reader.ReadUInt32();
@@ -81,13 +78,33 @@ namespace AoE2Wide
             var newLineMasks = new UInt32[newHeight];
             var newLines = new List<byte[]>(newHeight);
 
-            var skippedLines = 0; //'UNIT'TEST
+            var extraLines = newHeight - oldHeight;
+            var shrinking = extraLines < 0;
+            var expanding = extraLines > 0; 
+
+            var centreLine = oldHeight / 2;
+
+            var shrinkSkipStart = centreLine + extraLines;
+            var shrinkSkipEnd = centreLine;
+
+            // duplication is the amount of times every duplicated line, is duplicated
+            var duplication = 1 + (extraLines + 1)/(oldHeight/2);
+            // the duplication block size is the block that is being duplicated
+            // the last line of which MIGHT not be duplicated 'duplication' times
+            //  eg if duplication is 2, extralines = 501, dbs = 251, the last of which is
+            //  duped just once.
+            var duplicationBlockSize = (extraLines + duplication - 1)/duplication;
+
+            var dupStart = centreLine - duplicationBlockSize / 2;
+            var dupEnd = dupStart + duplicationBlockSize;
+
+            var dupedLines = 0; //'UNIT'TEST
             for (var inLine = 0; inLine < oldHeight; inLine++)
             {
                 // If shrinking skip 'extralines' lines on the centerline and above
-                if (extraLines < 0 && inLine >= centreLine + extraLines && inLine < centreLine)
+                if (shrinking && inLine >= shrinkSkipStart && inLine < shrinkSkipEnd)
                 {
-                    skippedLines++;
+                    dupedLines--;
                     continue;
                 }
 
@@ -97,16 +114,18 @@ namespace AoE2Wide
                 newLines.Add(newLine);
 
                 // If expanding, duplicate the right amount of lines before centreLine
-                if (extraLines <= 0 || inLine < centreLine - extraLines || inLine >= centreLine)
+                if (!expanding || inLine < dupStart || inLine >= dupEnd)
                     continue;
 
-                newLineMasks[newLines.Count] = orgLineMasks[inLine];
-
-                newLines.Add(newLine);
-                skippedLines--;
+                for (var rep = 0; rep < duplication && dupedLines < extraLines; rep++)
+                {
+                    newLineMasks[newLines.Count] = orgLineMasks[inLine];
+                    newLines.Add(newLine);
+                    dupedLines++;
+                }
             }
             Trace.Assert(newLines.Count == newHeight);
-            Trace.Assert(skippedLines == -extraLines);
+            Trace.Assert(dupedLines == extraLines);
 
             var nextLineStart = newLineDataStart;
 
