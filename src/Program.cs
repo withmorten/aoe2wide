@@ -326,7 +326,7 @@ namespace AoE2Wide
             {
                 iter = iter.Parent;
                 if (iter == null)
-                    throw new FatalError(@"Cannot locate the game directory (where I expect language_x1.dll)");
+                    throw new FatalError(@"Cannot locate the game directory (where I expect language_x1.dll). Please run AoE2Wide from the game folder or a subfolder of it.");
             }
             UserFeedback.Trace(@"Located @'{0}'", iter.FullName);
             return iter.FullName;
