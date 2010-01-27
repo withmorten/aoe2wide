@@ -12,12 +12,12 @@ namespace AoE2Wide
             Console.WriteLine(e.Message);
 
             // Only for 'not our exception', dump details
-            if (e is FatalError)
-                return;
-
-            Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.WriteLine("Exception Details:");
-            Console.WriteLine(e.ToString());
+            if (!(e is FatalError))
+            {
+                Console.ForegroundColor = ConsoleColor.DarkRed;
+                Console.WriteLine("Exception Details:");
+                Console.WriteLine(e.ToString());
+            }
             Console.ForegroundColor = normalColor;
         }
 
