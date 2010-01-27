@@ -343,6 +343,9 @@ namespace AoE2Wide
                                               string.Format(@"age2_x1_{2}{0}x{1}.exe", newWidth, newHeight,
                                                             versionString));
 
+                var batchName = Path.Combine(_gameDirectory,
+                                              string.Format(@"AoK-TC {2}{0}x{1}.bat", newWidth, newHeight,
+                                                            versionString));
                 //Trace(@"Writing file with all occurrences of resolutions");
                 //Patcher.ListEm(bytes);
 
@@ -355,6 +358,20 @@ namespace AoE2Wide
                 UserFeedback.Trace(string.Format(@"Writing the patched executable '{0}'", newExeName));
                 File.WriteAllBytes(newExeName, exe);
 
+                {
+                    var batContent = new[]
+                                         {
+                                             @"@echo off",
+                                             @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)",
+                                             @"ECHO Make sure pskill.exe is in your path if you want this",
+                                             @"pskill explorer.exe",
+                                             @"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode",
+                                             string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth),
+                                             @"start %systemroot%\explorer.exe"
+                                         };
+                    File.WriteAllLines(batchName, batContent);
+                }
+
                 if (File.Exists(newDrsName))
                 {
                     UserFeedback.Info(@"Patched drs file '{0}' exists already, skipping.", newDrsName);
@@ -365,13 +382,13 @@ namespace AoE2Wide
                     using (
                         var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
                                                           FileSystemRights.ReadData,
-                                                          FileShare.Read, 1024*1024, FileOptions.SequentialScan))
+                                                          FileShare.Read, 1024 * 1024, FileOptions.SequentialScan))
                     {
                         UserFeedback.Trace(@"Creating patched drs file '{0}'", newDrsName);
                         using (
                             var newDrs = new FileStream(newDrsName, FileMode.Create, FileSystemRights.Write,
                                                         FileShare.None,
-                                                        1024*1024, FileOptions.SequentialScan))
+                                                        1024 * 1024, FileOptions.SequentialScan))
                         {
                             UserFeedback.Trace(@"Patching DRS");
                             DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
@@ -388,7 +405,7 @@ namespace AoE2Wide
                         if (!Directory.Exists(specificPubDir))
                             Directory.CreateDirectory(specificPubDir);
 
-                        var specificPubDataDir = Path.Combine(specificPubDir,@"Data");
+                        var specificPubDataDir = Path.Combine(specificPubDir, @"Data");
                         if (!Directory.Exists(specificPubDataDir))
                             Directory.CreateDirectory(specificPubDataDir);
 
