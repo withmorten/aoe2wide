@@ -9,7 +9,8 @@ namespace AoE2Wide
 {
     class FatalError : Exception
     {
-        public FatalError(string msg) : base(msg)
+        public FatalError(string msg)
+            : base(msg)
         {
         }
     }
@@ -45,12 +46,12 @@ namespace AoE2Wide
             return FindFile(whatFile, fileName, null, null);
         }
 
-        private static string FindExeFile( int fileSize, string md5 )
+        private static string FindExeFile(int fileSize, string md5)
         {
             const string fileName = @"age2_x1*.exe";
             const string whatFile = @"unpatched exe";
             return FindFile(whatFile, fileName, fileSize, md5);
-//            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
+            //            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
         }
 
         private static string[] FindFiles(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
@@ -96,8 +97,8 @@ namespace AoE2Wide
         private static string GetChecksum(string file)
         {
             using (var stream = File.OpenRead(file))
-                using (var md5 = MD5.Create())
-                    return BitConverter.ToString(md5.ComputeHash(stream));
+            using (var md5 = MD5.Create())
+                return BitConverter.ToString(md5.ComputeHash(stream));
         }
 
         private static string GetChecksum(byte[] data)
@@ -109,7 +110,7 @@ namespace AoE2Wide
         private static bool IsFileHashCorrect(string fn, string expectedHash)
         {
             var actualHash = GetChecksum(fn);
-            if (actualHash.Equals(expectedHash,StringComparison.InvariantCultureIgnoreCase))
+            if (actualHash.Equals(expectedHash, StringComparison.InvariantCultureIgnoreCase))
                 return true;
             UserFeedback.Trace(string.Format(@"'{0}' doesn't meet the expected hashcode '{1}' instead of '{2}'",
                                              fn,
@@ -117,6 +118,10 @@ namespace AoE2Wide
                                              expectedHash));
             return false;
         }
+
+        private static bool _isVistaOrHigher = Environment.OSVersion.Version.Major >= 6;
+        private static bool _isSevenOrHigher =
+            Environment.OSVersion.Version.Major >= 7 || Environment.OSVersion.Version.Major == 6 && Environment.OSVersion.Version.Minor >= 1;
 
         [STAThread]
         static void Main(string[] args)
@@ -158,7 +163,7 @@ namespace AoE2Wide
                             UserFeedback.Trace(@"Skipping patched exe '{0}'", exe);
                             continue;
                         }
-                        
+
                         ConvertPatchFile(exe);
                     }
                 }
@@ -169,24 +174,35 @@ namespace AoE2Wide
                 return;
             }
 
+            _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
+
+            if (!File.Exists(_orgDrsPath))
+                throw new FatalError(string.Format(@"Cannot find drs file '{0}' in the game folder", _orgDrsPath));
+
             var patchFilePaths = FindPatchFiles();
             foreach (var patchFilePath in patchFilePaths)
             {
-                UserFeedback.Trace("Reading the patch file '{0}'", patchFilePath);
+                UserFeedback.Trace(@"");
+                UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
                 var patch = Patcher.ReadPatch(patchFilePath);
 
-                _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
-                _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
-
-                if (!File.Exists(_orgDrsPath))
-                    throw new FatalError(string.Format(@"Cannot find drs file '{0}' in current folder", _orgDrsPath));
+                try
+                {
+                    UserFeedback.Trace(@"Locating the correct original exe");
+                    _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
+                }
+                catch (FatalError)
+                {
+                    UserFeedback.Warning(@"No original exe found for patch file '{0}', skipping.", patchFilePath);
+                    continue;
+                }
 
                 switch (args.Length)
                 {
                     case 0:
                         {
                             UserFeedback.Info(
-                                "Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                                @"Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
                             var doneList = new HashSet<int>();
                             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                             {
@@ -194,7 +210,7 @@ namespace AoE2Wide
                                 {
                                     var newWidth = screen.Bounds.Width;
                                     var newHeight = screen.Bounds.Height;
-                                    var key = newWidth + (newHeight*65536);
+                                    var key = newWidth + (newHeight * 65536);
                                     if (doneList.Add(key))
                                         PatchExecutable(newWidth, newHeight, patch);
                                 }
@@ -297,7 +313,7 @@ namespace AoE2Wide
 
                 case "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25":
                     return "1.0";
-                    default:
+                default:
                     return md5.Replace("-", "");
             }
         }
@@ -344,8 +360,12 @@ namespace AoE2Wide
                                                             versionString));
 
                 var batchName = Path.Combine(_gameDirectory,
-                                              string.Format(@"AoK-TC {2}{0}x{1}.bat", newWidth, newHeight,
-                                                            versionString));
+                                              string.Format(@"AoC{2} {0}x{1}.bat", newWidth, newHeight,
+                                                            patch.Version));
+
+                var desktopBatchName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                                              string.Format(@"AoC{2} {0}x{1}.bat", newWidth, newHeight,
+                                                            patch.Version));
                 //Trace(@"Writing file with all occurrences of resolutions");
                 //Patcher.ListEm(bytes);
 
@@ -358,18 +378,69 @@ namespace AoE2Wide
                 UserFeedback.Trace(string.Format(@"Writing the patched executable '{0}'", newExeName));
                 File.WriteAllBytes(newExeName, exe);
 
+                if (File.Exists(batchName))
                 {
-                    var batContent = new[]
+                    UserFeedback.Trace(@"Skipping existing convenience batch file '{0}'", batchName);
+                }
+                else
+                {
+                    UserFeedback.Trace(@"Writing convenience batch file '{0}'", batchName);
+                    var batContent = new List<string> {@"@echo off"};
+
+                    if (_isVistaOrHigher)
+                    {
+
+                        batContent.Add(
+                            @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)");
+                        batContent.Add(@"ECHO Make sure pskill.exe is in your path if you want this");
+                        batContent.Add(@"pskill explorer.exe");
+                    }
+
+                    batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
+                    batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
+
+                    if (_isVistaOrHigher)
+                    {
+                        batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
+                        batContent.Add(@"start %systemroot%\explorer.exe");
+                    }
+                    File.WriteAllLines(batchName, batContent.ToArray());
+                }
+
+                if (File.Exists(desktopBatchName))
+                {
+                    UserFeedback.Trace(@"Skipping existing convenience desktop batch file '{0}'", desktopBatchName);
+                }
+                else
+                {
+                    var driveLetter = Path.GetPathRoot(_gameDirectory);
+                    driveLetter = driveLetter.Replace(Path.DirectorySeparatorChar, ' ');
+                    UserFeedback.Trace(@"Writing convenience desktop batch file '{0}'", desktopBatchName);
+                    var batContent = new List<string>
                                          {
                                              @"@echo off",
-                                             @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)",
-                                             @"ECHO Make sure pskill.exe is in your path if you want this",
-                                             @"pskill explorer.exe",
-                                             @"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode",
-                                             string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth),
-                                             @"start %systemroot%\explorer.exe"
+                                             driveLetter,
+                                             string.Format("cd \"{0}\"", _gameDirectory)
                                          };
-                    File.WriteAllLines(batchName, batContent);
+
+                    if (_isVistaOrHigher)
+                    {
+                        batContent.Add(
+                            @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)");
+                        batContent.Add(@"ECHO Make sure pskill.exe is in your path if you want this");
+                        batContent.Add(@"pskill explorer.exe");
+                    }
+
+                    batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
+                    batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
+
+                    if (_isVistaOrHigher)
+                    {
+                        batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
+                        batContent.Add(@"start %systemroot%\explorer.exe");
+                    }
+
+                    File.WriteAllLines(desktopBatchName, batContent.ToArray());
                 }
 
                 if (File.Exists(newDrsName))
