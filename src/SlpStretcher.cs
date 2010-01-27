@@ -60,44 +60,17 @@ namespace AoE2Wide
             Trace.Assert(osp == maskOffset);
 
             var extraLines = newHeight - oldHeight;
-
             var centreLine = oldHeight/2;
-            if (extraLines >= 0)
-            {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    var lineMaskData = reader.ReadUInt32();
-                    writer.Write(lineMaskData);
-                    if (inLine != centreLine)
-                        continue;
 
-                    for (var el = 0; el < extraLines; el++)
-                        writer.Write(lineMaskData);
-                }
-            }
-            else
-            {
-                for (var inLine = 0; inLine < oldHeight; inLine++)
-                {
-                    var lineMaskData = reader.ReadUInt32();
-
-                    // Skip 'extralines' lines on the centerline and above
-                    if (inLine >= centreLine + extraLines && inLine < centreLine)
-                        continue;
-
-                    writer.Write(lineMaskData);
-                }
-            }
-
-            osp = outStream.Position;
-            Trace.Assert(osp == newLinesOffset);
+            var orgLineMasks = new UInt32[oldHeight];
+            for (var inLine = 0; inLine < oldHeight; inLine++)
+                orgLineMasks[inLine] = reader.ReadUInt32();
 
             var orgLineStarts = new UInt32[oldHeight + 1];
             for (var inLine = 0; inLine < oldHeight; inLine++)
                 orgLineStarts[inLine] = reader.ReadUInt32();
             orgLineStarts[oldHeight] = (uint) data.Length;
 
-            //var orgLineSizes = new UInt32[oldHeight];
             var orgLines = new List<byte[]>(oldHeight);
             for (var inLine = 0; inLine < oldHeight; inLine++)
             {
@@ -105,8 +78,7 @@ namespace AoE2Wide
                 orgLines.Add(reader.ReadBytes((int) orgLineSize));
             }
 
-            var linePatch = new byte[]{};
-
+            var newLineMasks = new UInt32[newHeight];
             var newLines = new List<byte[]>(newHeight);
 
             var skippedLines = 0; //'UNIT'TEST
@@ -119,12 +91,16 @@ namespace AoE2Wide
                     continue;
                 }
 
+                newLineMasks[newLines.Count] = orgLineMasks[inLine];
+
                 var newLine = StretchLine(orgLines[inLine], oldWidth, newWidth);
                 newLines.Add(newLine);
 
                 // If expanding, duplicate the right amount of lines before centreLine
                 if (extraLines <= 0 || inLine < centreLine - extraLines || inLine >= centreLine)
                     continue;
+
+                newLineMasks[newLines.Count] = orgLineMasks[inLine];
 
                 newLines.Add(newLine);
                 skippedLines--;
@@ -133,6 +109,12 @@ namespace AoE2Wide
             Trace.Assert(skippedLines == -extraLines);
 
             var nextLineStart = newLineDataStart;
+
+            foreach (var newLineMask in newLineMasks)
+                writer.Write(newLineMask);
+
+            osp = outStream.Position;
+            Trace.Assert(newLinesOffset == osp);
 
             foreach (var newLine in newLines)
             {
