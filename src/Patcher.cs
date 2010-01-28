@@ -1,17 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 
 namespace AoE2Wide
 {
-    internal struct Item
+    internal class Item
     {
         public int Pos;
         public int ReferenceValue;
         public string Type;
+        public int Parameter;
         public string Comments;
+        public string Asm;
         public int OriginalPos;
     }
 
@@ -44,13 +47,13 @@ namespace AoE2Wide
                         sb.AppendLine(String.Format("{0:X8} {1:G4}", index, value));
                 }
             }
-            System.IO.File.WriteAllText(@"..\Data\output.txt", sb.ToString());
+            File.WriteAllText(@"..\Data\output.txt", sb.ToString());
         }
 
-        public static Patch ReadPatch(string patchFile)
+        public static Patch ReadPatch(string patchFile, bool activeOnly)
         {
             var items = new List<Item>(1024);
-            var lines = System.IO.File.ReadAllLines(patchFile);
+            var lines = File.ReadAllLines(patchFile);
             var usedLines = new List<string>(lines.Length);
             var patch = new Patch();
 
@@ -73,7 +76,8 @@ namespace AoE2Wide
                 }
                 if (line.StartsWith("drspos="))
                 {
-                    patch.InterfaceDrsPosition = int.Parse(line.Substring(7),System.Globalization.NumberStyles.HexNumber);
+                    patch.InterfaceDrsPosition = int.Parse(line.Substring(7),
+                                                           System.Globalization.NumberStyles.HexNumber);
                     continue;
                 }
 
@@ -81,27 +85,51 @@ namespace AoE2Wide
                     continue;
                 if (line.StartsWith("#"))
                     continue;
-                var words = line.Split(new[] { ' ' }, 4);
-                if (words.Length < 3)
-                    continue;
-                if (
-                    !words[2].Equals("H") &&
-                    !words[2].Equals("V") &&
-                    !words[2].Equals("dH") &&
-                    !words[2].Equals("dV") &&
-                    !words[2].Equals("HV")
-                    )
-                    continue;
+
+                var splitAsm = line.Split(new[] {'|'}, 2);
+                var words = splitAsm[0].Split(new[] {' ', '\t'}, 4, StringSplitOptions.RemoveEmptyEntries);
+                if (activeOnly)
+                {
+                    if (words.Length < 3)
+                        continue;
+                    if (
+                        !words[2].Equals("H") &&
+                        !words[2].Equals("V") &&
+                        !words[2].Equals("dH") &&
+                        !words[2].Equals("dV") &&
+                        !words[2].Equals("HV")
+                        )
+                        continue;
+                }
+                else
+                {
+                    if (words.Length < 2)
+                        continue;
+                }
 
                 var item = new Item
                                {
                                    Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
                                    ReferenceValue = int.Parse(words[1]),
-                                   Type = words[2]
+                                   Type = @"",
+                                   Comments = @""
                                };
+                if (words.Length > 2)
+                    item.Type = words[2];
+
+                if (words.Length > 3)
+                {
+                    var splitComment = words[3].Split(new[] {' ', '\t'}, 2, StringSplitOptions.RemoveEmptyEntries);
+                    if (int.TryParse(splitComment[0], out item.Parameter))
+                        item.Comments = splitComment.Length == 1 ? @"" : splitComment[1].TrimEnd();
+                    else
+                        item.Comments = words[3].TrimEnd();
+                }
+
+                if (!activeOnly && splitAsm.Length > 1)
+                    item.Asm = splitAsm[1].Trim();
+
                 item.OriginalPos = item.Pos;
-                if (words.Length == 4)
-                    item.Comments = words[3];
                 items.Add(item);
                 usedLines.Add(line);
             }
@@ -123,9 +151,74 @@ namespace AoE2Wide
             }
         }
 
+        private static string FindAsm(int pos, IDictionary<int,string> asmMap)
+        {
+            string retVal = null;
+            var min = pos - 10;
+            for (var iter = pos; iter > min; iter--)
+            {
+                if (asmMap.TryGetValue(iter, out retVal))
+                    return retVal;
+            }
+            return retVal;
+        }
+
+        public static void AddAsm(Patch patch, IDictionary<int, string> asmMap)
+        {
+            foreach ( var item in patch.Items)
+            {
+                item.Asm = FindAsm(item.Pos, asmMap);
+            }
+        }
+
+        public static IDictionary<int,string> ReadAsmMap( string lstPath)
+        {
+            var allLines = File.ReadAllLines(lstPath, Encoding.GetEncoding(437));
+            var asmMap = new Dictionary<int, string>(allLines.Length);
+            foreach (var line in allLines)
+            {
+                var noComment = line.Split(new[] {';'},2,StringSplitOptions.RemoveEmptyEntries);
+                if (noComment.Length==0)
+                    continue;
+
+                var cleanLine = noComment[0].TrimEnd();
+                if (cleanLine.Length <= 14)
+                    continue;
+
+                const int basis = 0x00400000;
+                int offset;
+                if (!int.TryParse(cleanLine.Substring(6, 8), System.Globalization.NumberStyles.HexNumber, null, out offset))
+                    continue;
+
+                if (offset < basis)
+                    continue;
+                asmMap[offset - basis] = line;
+            }
+            return asmMap;
+        }
+
         private static IEnumerable<string> StringifyPatch(Patch patch)
         {
-            return patch.Items.Select(item => string.Format(@"{4}{0:X8} {1} {2} {3} [rootPos: {5:X8}, offset {6}]", item.Pos, item.ReferenceValue, item.Type, item.Comments, item.Pos < 0 ? "!!!" : "", item.OriginalPos, item.Pos - item.OriginalPos));
+            foreach (var item in patch.Items)
+            {
+                var rootPos = item.OriginalPos != 0 && item.OriginalPos != item.Pos
+                                  ? string.Format(@"[rootPos: {0:X8}, offset {1,-8}]", item.OriginalPos,
+                                                  item.Pos - item.OriginalPos)
+                                  : @"";
+                var pos = item.Pos > 0
+                              ? item.Pos.ToString(@"X8")
+                              : string.Format(@"!!!{0:X8}", -item.Pos);
+
+                var asm = string.IsNullOrEmpty(item.Asm)
+                              ? @""
+                              : " | " + item.Asm;
+
+                var param = item.Parameter != 0 ? item.Parameter.ToString() : @"";
+
+                yield return string.Format("{0}  {1,4}  {2,3}  {3,4}  {4,-60}{5}{6}",
+                                           pos, item.ReferenceValue, item.Type, param, item.Comments, rootPos, asm);
+
+            }
         }
 
         static public void WritePatch(Patch patch, string filePath)
@@ -143,7 +236,7 @@ namespace AoE2Wide
             var patchLines = StringifyPatch(patch);
             header.AddRange(patchLines);
 
-            System.IO.File.WriteAllLines(filePath, header.ToArray());
+            File.WriteAllLines(filePath, header.ToArray());
         }
 
         static public Patch ConvertPatch(byte[] rootExe, byte[] otherExe, Patch patch)
@@ -333,9 +426,8 @@ namespace AoE2Wide
                 var orgValue = ob0 | ob1 << 8 | ob2 << 16 | ob3 << 24;
                 if (item.Type.Equals("dV") || item.Type.Equals("dH"))
                 {
-                    int expectedOrgValue;
-                    var subWords = item.Comments.Split(new[] { ' ' }, 2);
-                    if (subWords.Length == 0 || !int.TryParse(subWords[0], out expectedOrgValue))
+                    var expectedOrgValue = item.Parameter;
+                    if (expectedOrgValue == 0)
                     {
                         UserFeedback.Warning(
                             string.Format(
