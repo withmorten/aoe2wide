@@ -982,9 +982,14 @@ drspos=0027BE90
 000EA59B 320
 000EA691 200
 000EA6B9 320
-000EA898 1280 H not sure
-000EA8C5 1280 H test
-000EA8ED 1024 H test
+
+000EA898 1280 H test for drawing smth at either 126,10 (1280x1024) or 126,4
+000EA8C5 1280 H test for the Conquerors text
+000EA8D3 1024 dV 982 Y of the Conquerors overlay
+000EA8ED 1024 H test for the Conquerors text
+000EA8FB 768 dV 733 Y of the Conquerors overlay
+000EA91A 600 dV 572 Y of the Conquerors overlay
+
 000EAF6D 1024
 000EAF7B 1024
 000EB154 1024
