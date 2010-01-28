@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AoE2Wide", "AoE2Wide.csproj", "{45FB8301-27F8-474A-8C77-D05898217B15}"
 EndProject
-Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "setup", "..\setup\setup.vdproj", "{1A22A5D7-C74C-4D18-81D0-E329BE542012}"
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "AoE2Wide Setup", "..\setup\setup.vdproj", "{1A22A5D7-C74C-4D18-81D0-E329BE542012}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
