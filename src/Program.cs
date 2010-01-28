@@ -141,6 +141,11 @@ namespace AoE2Wide
             _gameDirectory = FindGameDirectory();
             if (args.Length == 1)
             {
+                if (args[0].Equals(@"addasm"))
+                {
+                    AddAsmToRootPatchFile();
+                    return;
+                }
                 if (args[0].Equals("createpatches"))
                 {
                     var allExes = FindFiles(@"AoK-TC executables", @"age2_x1*.exe", null, null);
@@ -182,7 +187,7 @@ namespace AoE2Wide
             {
                 UserFeedback.Trace(@"");
                 UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
-                var patch = Patcher.ReadPatch(patchFilePath);
+                var patch = Patcher.ReadPatch(patchFilePath, true);
 
                 try
                 {
@@ -238,13 +243,36 @@ namespace AoE2Wide
             }
         }
 
+        private static void AddAsmToRootPatchFile()
+        {
+            UserFeedback.Info(@"Locating listing file");
+            var lstFile = FindFile("listing file", "age2_x1*.lst", null, null);
+
+            UserFeedback.Info(@"Locating RootPatch file");
+            var rootPatchFilePath = FindRootPatchFile();
+
+            UserFeedback.Trace(@"Reading the root patch file");
+            var patch = Patcher.ReadPatch(rootPatchFilePath, false);
+
+            UserFeedback.Trace(@"Reading the listing file");
+            var asmMap = Patcher.ReadAsmMap(lstFile);
+
+            UserFeedback.Trace(@"Adding Asm to the patch data");
+            Patcher.AddAsm(patch, asmMap);
+
+            var outputRootPatchFilePath = rootPatchFilePath + "2";
+
+            UserFeedback.Trace("Writing the patch file '{0}'", outputRootPatchFilePath);
+            Patcher.WritePatch(patch, outputRootPatchFilePath);
+        }
+
         private static void ConvertPatchFile(string otherExe)
         {
             UserFeedback.Info(@"Converting RootPatch file to a patch file for '{0}'", otherExe);
             var rootPatchFilePath = FindRootPatchFile();
 
             UserFeedback.Trace(@"Reading the root patch file");
-            var patch = Patcher.ReadPatch(rootPatchFilePath);
+            var patch = Patcher.ReadPatch(rootPatchFilePath, true);
 
             UserFeedback.Trace(@"Locating the root executable file");
             var rootExePath = FindExeFile(patch.FileSize, patch.Md5);
