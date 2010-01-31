@@ -252,6 +252,7 @@ namespace AoE2Wide
                                                                                             item.Pos),
                                                                       Comments = item.Comments,
                                                                       ReferenceValue = item.ReferenceValue,
+                                                                      Parameter = item.Parameter,
                                                                       Type = item.Type,
                                                                       OriginalPos = item.Pos
                                                                   }).ToArray()
