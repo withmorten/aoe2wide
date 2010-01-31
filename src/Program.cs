@@ -417,9 +417,8 @@ namespace AoE2Wide
                     {
 
                         batContent.Add(
-                            @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)");
-                        batContent.Add(@"ECHO Make sure pskill.exe is in your path if you want this");
-                        batContent.Add(@"pskill explorer.exe");
+                            @"ECHO Using taskkill to kill explorer.exe (win7, vista palette fix)");
+                        batContent.Add(@"taskkill /F /IM explorer.exe");
                     }
 
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
@@ -452,9 +451,8 @@ namespace AoE2Wide
                     if (IsVistaOrHigher)
                     {
                         batContent.Add(
-                            @"ECHO Using www.sysinternals.com 'pskill' to kill explorer.exe (win7, vista palette fix)");
-                        batContent.Add(@"ECHO Make sure pskill.exe is in your path if you want this");
-                        batContent.Add(@"pskill explorer.exe");
+                            @"ECHO Using taskkill to kill explorer.exe (win7, vista palette fix)");
+                        batContent.Add(@"taskkill /F /IM explorer.exe");
                     }
 
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
