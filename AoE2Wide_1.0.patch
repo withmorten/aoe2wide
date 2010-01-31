@@ -33,6 +33,7 @@ drspos=0027BE90
 0004D4AE  1024    V        set                                                         
 0004D4B5   800    H        set                                                         
 0004D4BA   600    V        set                                                         
+0004D4EA  1600    H        test                                                        
 00055F41   600    V        sometest                                                    
 000560DB   768    V        sometest                                                    
 000561B3  1024    V        sometest                                                    
@@ -41,9 +42,12 @@ drspos=0027BE90
 00056666   768    V        test for setcliprgn                                         
 00056680  1024    V        test for setcliprgn                                         
 0005669A  1600    V        test for setcliprgn                                         
-0005DB46   800    H        test->set 0x210 528                                         
-0005DB4E  1024    H        test->set 0x299 665                                         
-0005DB56  1280    H        test->set 0x39E 926                                         
+0005DB46   800    H        test->add 0x210 528                                         
+0005DB4E  1024    H        test->add 0x299 665                                         
+0005DB56  1280    H        test->add 0x39E 926                                         
+0005DB60  1024   dV   926  Y or H height of smth ??                                    
+0005DB70   768   dV   665  Y or H height of smth ??                                    
+0005DB85   600   dV   528  Y or H height of smth ??                                    
 00063C2B   800    H        sometest                                                    
 00063C3B  1024    H        sometest                                                    
 00063C46  1280    H        sometest                                                    
