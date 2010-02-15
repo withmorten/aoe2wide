@@ -27,6 +27,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_9CD77E967F3949BF932C31AF44D2D9EA"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_C60CBAA16587492BA4AAB06585C22618"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -74,6 +80,19 @@
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
             "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.Net.Framework.3.5.SP1"
+                    {
+                    "Name" = "8:.NET Framework 3.5 SP1"
+                    "ProductCode" = "8:Microsoft.Net.Framework.3.5.SP1"
+                    }
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.Windows.Installer.3.1"
+                    {
+                    "Name" = "8:Windows Installer 3.1"
+                    "ProductCode" = "8:Microsoft.Windows.Installer.3.1"
+                    }
+                }
             }
         }
         "Release"
@@ -81,11 +100,11 @@
         "DisplayName" = "8:Release"
         "IsDebugOnly" = "11:FALSE"
         "IsReleaseOnly" = "11:TRUE"
-        "OutputFilename" = "8:Release\\AoE2WideSetup.msi"
+        "OutputFilename" = "8:Release\\AoE2WideSetup_r40.msi"
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
-        "Compression" = "3:2"
+        "Compression" = "3:3"
         "SignOutput" = "11:FALSE"
         "CertificateFile" = "8:"
         "PrivateKeyFile" = "8:"
@@ -96,7 +115,7 @@
             "Enabled" = "11:TRUE"
             "PromptEnabled" = "11:TRUE"
             "PrerequisitesLocation" = "2:1"
-            "Url" = "8:http://boekabart.dyndns.org/aoe2wide/AoE2WideSetup.msi"
+            "Url" = "8:http://www.boekabart.net/aoe2wide/AoE2WideSetup_r40.msi"
             "ComponentsUrl" = "8:"
                 "Items"
                 {
@@ -145,6 +164,26 @@
             {
             "SourcePath" = "8:..\\AoE2Wide.RootPatch"
             "TargetName" = "8:AoE2Wide.RootPatch"
+            "Tag" = "8:"
+            "Folder" = "8:_D58C39F4D1D84906A386308EBE78D46D"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9CD77E967F3949BF932C31AF44D2D9EA"
+            {
+            "SourcePath" = "8:..\\Process.exe"
+            "TargetName" = "8:Process.exe"
             "Tag" = "8:"
             "Folder" = "8:_D58C39F4D1D84906A386308EBE78D46D"
             "Condition" = "8:"
@@ -277,23 +316,23 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Age of Empires II - the Conquerors WideScreen Patcher"
-        "ProductCode" = "8:{4C9CF95E-F329-4343-9C57-5A7E0FD6FA84}"
-        "PackageCode" = "8:{89B2080B-2AAD-405B-8C1E-CF1573D68FE9}"
+        "ProductCode" = "8:{BA2F3EBC-FE07-4AB5-B906-14DF2C74C523}"
+        "PackageCode" = "8:{EAB6935E-BE91-4601-9492-CD74B8B1F249}"
         "UpgradeCode" = "8:{BAB917DA-608D-47FC-AE0E-5018400A2F34}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:1.0.1"
+        "ProductVersion" = "8:1.0.40"
         "Manufacturer" = "8:Boekabart"
         "ARPHELPTELEPHONE" = "8:"
-        "ARPHELPLINK" = "8:http://boekabart.dyndns.org/aoe2wide"
+        "ARPHELPLINK" = "8:http://www.boekabart.net/aoe2wide"
         "Title" = "8:Age of Empires II - the Conquerors WideScreen Patcher"
         "Subject" = "8:"
         "ARPCONTACT" = "8:Boekabart"
         "Keywords" = "8:"
         "ARPCOMMENTS" = "8:"
-        "ARPURLINFOABOUT" = "8:http://boekabart.dyndns.org/"
+        "ARPURLINFOABOUT" = "8:http://www.boekabart.net/"
         "ARPPRODUCTICON" = "8:"
         "ARPIconIndex" = "3:0"
         "SearchPath" = "8:"
