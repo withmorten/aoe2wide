@@ -24,6 +24,7 @@ namespace AoE2Wide
         private static string _orgDrsPath;
         private static string _orgExePath;
         private static string _gameDirectory;
+        private const bool skipExistingFiles = false;
 
         private static string FindPatchFile()
         {
@@ -51,7 +52,20 @@ namespace AoE2Wide
             const string fileName = @"age2_x1*.exe";
             const string whatFile = @"unpatched exe";
             return FindFile(whatFile, fileName, fileSize, md5);
-            //            return FindFile(whatFile, fileName, 2695213, "0D-9D-3B-61-BC-11-BF-DA-72-D7-D1-75-04-50-E0-25");
+        }
+
+        private static string FindProcessExe()
+        {
+            try
+            {
+                const string fileName = @"process.exe";
+                const string whatFile = @"process suspender/resumer";
+                return FindFile(whatFile, fileName, null, null);
+            }
+            catch (FatalError fe)
+            {
+                return null;
+            }
         }
 
         private static string[] FindFiles(string whatFile, string fileName, Int64? expectedSize, string expectedHash)
@@ -404,7 +418,7 @@ namespace AoE2Wide
                 UserFeedback.Trace(string.Format(@"Writing the patched executable '{0}'", newExeName));
                 File.WriteAllBytes(newExeName, exe);
 
-                if (File.Exists(batchName))
+                if (skipExistingFiles && File.Exists(batchName))
                 {
                     UserFeedback.Trace(@"Skipping existing convenience batch file '{0}'", batchName);
                 }
@@ -413,26 +427,28 @@ namespace AoE2Wide
                     UserFeedback.Trace(@"Writing convenience batch file '{0}'", batchName);
                     var batContent = new List<string> {@"@echo off"};
 
-                    if (IsVistaOrHigher)
-                    {
+                    var processExe = IsVistaOrHigher ? FindProcessExe() : null;
 
+                    if (processExe != null)
+                    {
                         batContent.Add(
-                            @"ECHO Using taskkill to kill explorer.exe (win7, vista palette fix)");
-                        batContent.Add(@"taskkill /F /IM explorer.exe");
+                            @"ECHO Using process.exe to suspend explorer.exe (win7, vista palette fix)");
+                        batContent.Add(string.Format("\"{0}\" -s explorer.exe", processExe));
                     }
 
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
                     batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
 
-                    if (IsVistaOrHigher)
+                    if (processExe != null)
                     {
-                        batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
-                        batContent.Add(@"start %systemroot%\explorer.exe");
+                        batContent.Add(@"ECHO Resuming explorer (was suspended before)");
+                        batContent.Add(string.Format("\"{0}\" -r explorer.exe", processExe));
                     }
+
                     File.WriteAllLines(batchName, batContent.ToArray());
                 }
 
-                if (File.Exists(desktopBatchName))
+                if (skipExistingFiles && File.Exists(desktopBatchName))
                 {
                     UserFeedback.Trace(@"Skipping existing convenience desktop batch file '{0}'", desktopBatchName);
                 }
@@ -448,26 +464,28 @@ namespace AoE2Wide
                                              string.Format("cd \"{0}\"", _gameDirectory)
                                          };
 
-                    if (IsVistaOrHigher)
+                    var processExe = IsVistaOrHigher ? FindProcessExe() : null;
+
+                    if (processExe != null)
                     {
                         batContent.Add(
-                            @"ECHO Using taskkill to kill explorer.exe (win7, vista palette fix)");
-                        batContent.Add(@"taskkill /F /IM explorer.exe");
+                            @"ECHO Using process.exe to suspend explorer.exe (win7, vista palette fix)");
+                        batContent.Add(string.Format("\"{0}\" -s explorer.exe", processExe));
                     }
 
                     batContent.Add(@"ECHO Starting Age of Empires II - The Conquerers in the correct screen mode");
                     batContent.Add(string.Format("\"{0}\" {1}", Path.GetFileName(newExeName), oldWidth));
 
-                    if (IsVistaOrHigher)
+                    if (processExe != null)
                     {
-                        batContent.Add(@"ECHO Restoring explorer (if killed by pskill before)");
-                        batContent.Add(@"start %systemroot%\explorer.exe");
+                        batContent.Add(@"ECHO Resuming explorer (was suspended before)");
+                        batContent.Add(string.Format("\"{0}\" -r explorer.exe", processExe));
                     }
 
                     File.WriteAllLines(desktopBatchName, batContent.ToArray());
                 }
 
-                if (File.Exists(newDrsName))
+                if (skipExistingFiles && File.Exists(newDrsName))
                 {
                     UserFeedback.Info(@"Patched drs file '{0}' exists already, skipping.", newDrsName);
                 }
@@ -527,7 +545,7 @@ namespace AoE2Wide
         private static void GetOldWidthHeight(int newWidth, int newHeight, out int oldWidth, out int oldHeight)
         {
             // Arbitrary threshold: (allows for a bit of vertical shrinkage, but no horizontal)
-            if (newWidth >= 1280 && newHeight >= 960)
+            if (newWidth >= 1280 && newHeight >= 1024)
             {
                 oldWidth = 1280;
                 oldHeight = 1024;
