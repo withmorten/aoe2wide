@@ -178,7 +178,7 @@ namespace AoE2Wide
                 while (amount > 0)
                 {
                     var count = Math.Min(amount, 15);
-                    outStream.WriteByte((byte) (7 | (count << 8)));
+                    outStream.WriteByte((byte) (7 | (count << 4)));
                     outStream.WriteByte(color);
                     amount -= count;
                 }
