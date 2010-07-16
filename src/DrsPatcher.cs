@@ -27,8 +27,21 @@ namespace AoE2Wide
         {
             var reader = new BinaryReader(oldDrs);
             var writer = new BinaryWriter(newDrs);
-            writer.Write(reader.ReadBytes(40)); // Copyright
-            writer.Write(reader.ReadBytes(4)); // Version
+
+            // Header consists of Text, then 0x1A EOF, then some 0x00's, then the version
+            // The following code reads the whole header AND the first byte of the Version
+            bool foundEof = false;
+            while (true)
+            {
+                var byt =reader.ReadByte();
+                writer.Write(byt);
+                if (byt == 0x1A)
+                    foundEof = true;
+                else if (byt != '\0' && foundEof)
+                    break;
+            }
+            //writer.Write(reader.ReadBytes(40)); // Copyright
+            writer.Write(reader.ReadBytes(3)); // REST OF Version
             writer.Write(reader.ReadBytes(12)); // type
             var tableCount = reader.ReadUInt32(); writer.Write(tableCount);
             var firstFilePos = reader.ReadUInt32(); writer.Write(firstFilePos);
