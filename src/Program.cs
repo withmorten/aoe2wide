@@ -49,7 +49,7 @@ namespace AoE2Wide
 
         private static string FindExeFile(int fileSize, string md5)
         {
-            const string fileName = @"age2_x1*.exe";
+            const string fileName = @"*.exe";
             const string whatFile = @"unpatched exe";
             return FindFile(whatFile, fileName, fileSize, md5);
         }
