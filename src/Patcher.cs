@@ -20,6 +20,7 @@ namespace AoE2Wide
 
     class Patch
     {
+        public string PatchFilepath;
         public int FileSize;
         public string Md5;
         public string Version;
@@ -51,6 +52,18 @@ namespace AoE2Wide
             File.WriteAllText(@"..\Data\output.txt", sb.ToString());
         }
 
+        public static Patch TryReadPatch(string patchFile, bool activeOnly)
+        {
+            try
+            {
+                return ReadPatch(patchFile, activeOnly);
+            }
+            catch
+            {
+                return new Patch() { PatchFilepath = patchFile };
+            }
+        }
+
         public static Patch ReadPatch(string patchFile, bool activeOnly)
         {
             try
@@ -58,7 +71,8 @@ namespace AoE2Wide
                 var items = new List<Item>(1024);
                 var lines = File.ReadAllLines(patchFile);
                 var usedLines = new List<string>(lines.Length);
-                var patch = new Patch();
+                var patch = new Patch() { PatchFilepath = patchFile };
+
 
                 foreach (var line in lines)
                 {
