@@ -22,6 +22,7 @@ namespace AoE2Wide
         /// </summary>
         /// 
         private static string _orgDrsPath;
+        private static string _orgX1DrsPath;
         private static string _orgExePath;
         private static string _gameDirectory;
         private const bool skipExistingFiles = false;
@@ -150,6 +151,61 @@ namespace AoE2Wide
             UserFeedback.Close();
         }
 
+        static void PatchAllDrs()
+        {
+            var doneList = new HashSet<int>();
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+            {
+                try
+                {
+                    var newWidth = screen.Bounds.Width;
+                    var newHeight = screen.Bounds.Height;
+                    var key = newWidth + (newHeight * 65536);
+                    if (doneList.Add(key))
+                        PatchAllDrs(newWidth, newHeight);
+                }
+                catch (Exception e)
+                {
+                    UserFeedback.Error(e);
+                }
+            }
+        }
+
+        static void PatchAllDrs(int newWidth, int newHeight)
+        {
+            int oldWidth, oldHeight;
+            GetOldWidthHeight(newWidth, newHeight, out oldWidth, out oldHeight);
+            foreach ( var drsPath in System.IO.Directory.GetFiles( @"data\", "*.drs"))
+            {
+                var directory = string.Format("data{0}x{1}", newWidth, newHeight);
+                if (!System.IO.Directory.Exists( directory))
+                    System.IO.Directory.CreateDirectory( directory);
+
+                var newPath = System.IO.Path.Combine( directory, System.IO.Path.GetFileName( drsPath ));
+                PatchADrs(drsPath, newPath, oldWidth, oldHeight, newWidth, newHeight);
+            }
+        }
+
+        static void PatchADrs(string _orgDrsPath, string newDrsName, int oldWidth, int oldHeight, int newWidth, int newHeight)
+        {
+            UserFeedback.Trace(@"Opening original {0}", System.IO.Path.GetFileName(_orgDrsPath));
+            using (
+                var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
+                                                  FileSystemRights.ReadData,
+                                                  FileShare.Read, 1024 * 1024, FileOptions.SequentialScan))
+            {
+                UserFeedback.Trace(@"Creating patched drs file '{0}'", newDrsName);
+                using (
+                    var newDrs = new FileStream(newDrsName, FileMode.Create, FileSystemRights.Write,
+                                                FileShare.None,
+                                                1024 * 1024, FileOptions.SequentialScan))
+                {
+                    UserFeedback.Trace(@"Patching DRS");
+                    DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
+                }
+            }
+        }
+
         static void Go(string[] args)
         {
             _gameDirectory = FindGameDirectory();
@@ -160,6 +216,11 @@ namespace AoE2Wide
                     AddAsmToRootPatchFile();
                     return;
                 }
+/*                if (args[0].Equals(@"test"))
+                {
+                    PatchAllDrs();
+                    return;
+                }*/
                 if (args[0].Equals("createpatches"))
                 {
                     var allExes = FindFiles(@"AoK-TC executables", @"age2_x1*.exe", null, null);
@@ -192,6 +253,7 @@ namespace AoE2Wide
             }
 
             _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
+            _orgX1DrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac_x1.drs");
 
             if (!File.Exists(_orgDrsPath))
                 throw new FatalError(string.Format(@"Cannot find drs file '{0}' in the game folder", _orgDrsPath));
@@ -201,7 +263,16 @@ namespace AoE2Wide
             {
                 UserFeedback.Trace(@"");
                 UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
-                var patch = Patcher.ReadPatch(patchFilePath, true);
+                Patch patch;
+                try
+                {
+                    patch = Patcher.ReadPatch(patchFilePath, true);
+                }
+                catch (FatalError)
+                {
+                    UserFeedback.Warning(@"Invalid patch file '{0}', skipping.", patchFilePath);
+                    continue;
+                }
 
                 try
                 {
@@ -213,6 +284,12 @@ namespace AoE2Wide
                     UserFeedback.Warning(@"No original exe found for patch file '{0}', skipping.", patchFilePath);
                     continue;
                 }
+
+                if (patch.InterfaceX1DrsPosition > 0 && !File.Exists(_orgX1DrsPath))
+                    throw new FatalError(string.Format(@"Cannot find X1 drs file '{0}' in the game folder", _orgX1DrsPath));
+
+                if (patch.InterfaceX1DrsPosition == 0 && File.Exists(_orgX1DrsPath))
+                    UserFeedback.Warning(string.Format(@"Found X1 drs file '{0}' in the game folder, but no x1drspos=??? in patch file. X1 drs won't be patched!", _orgX1DrsPath));
 
                 switch (args.Length)
                 {
@@ -395,6 +472,7 @@ namespace AoE2Wide
                 var versionString = patch.Version.Length == 0 ? "" : patch.Version + "_";
 
                 var newDrsName = Path.Combine(Path.Combine(_gameDirectory, @"Data"), string.Format(@"{0:D4}{1:D4}.drs", newWidth, newHeight));
+                var newX1DrsName = Path.Combine(Path.Combine(_gameDirectory, @"Data"), string.Format(@"{0:D4}{1:D4}_x1.drs", newWidth, newHeight));
                 var newExeName = Path.Combine(_gameDirectory,
                                               string.Format(@"age2_x1_{2}{0}x{1}.exe", newWidth, newHeight,
                                                             versionString));
@@ -411,6 +489,12 @@ namespace AoE2Wide
 
                 UserFeedback.Trace("Patching the executable: DRS reference");
                 Patcher.PatchDrsRefInExe(exe, Path.GetFileName(newDrsName), patch);
+
+                if (patch.InterfaceX1DrsPosition > 0)
+                {
+                    UserFeedback.Trace("Patching the executable: X1 DRS reference");
+                    Patcher.PatchX1DrsRefInExe(exe, Path.GetFileName(newX1DrsName), patch);
+                }
 
                 UserFeedback.Trace("Patching the executable: resolutions");
                 Patcher.PatchResolutions(exe, oldWidth, oldHeight, newWidth, newHeight, patch);
@@ -491,21 +575,18 @@ namespace AoE2Wide
                 }
                 else
                 {
-                    UserFeedback.Trace(@"Opening original interfac.drs");
-                    using (
-                        var interfaceDrs = new FileStream(_orgDrsPath, FileMode.Open,
-                                                          FileSystemRights.ReadData,
-                                                          FileShare.Read, 1024 * 1024, FileOptions.SequentialScan))
+                    PatchADrs(_orgDrsPath, newDrsName, oldWidth, oldHeight, newWidth, newHeight);
+                }
+
+                if (patch.InterfaceX1DrsPosition > 0)
+                {
+                    if (skipExistingFiles && File.Exists(newX1DrsName))
                     {
-                        UserFeedback.Trace(@"Creating patched drs file '{0}'", newDrsName);
-                        using (
-                            var newDrs = new FileStream(newDrsName, FileMode.Create, FileSystemRights.Write,
-                                                        FileShare.None,
-                                                        1024 * 1024, FileOptions.SequentialScan))
-                        {
-                            UserFeedback.Trace(@"Patching DRS");
-                            DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
-                        }
+                        UserFeedback.Info(@"Patched X1 drs file '{0}' exists already, skipping.", newX1DrsName);
+                    }
+                    else
+                    {
+                        PatchADrs(_orgX1DrsPath, newX1DrsName, oldWidth, oldHeight, newWidth, newHeight);
                     }
                 }
 
