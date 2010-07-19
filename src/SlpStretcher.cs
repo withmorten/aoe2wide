@@ -31,7 +31,9 @@ namespace AoE2Wide
 
             var height = reader.ReadInt32();
             if (height != oldHeight)
-                return data;
+            {
+                newHeight = oldHeight = height;
+            }
 
             var centerX = reader.ReadInt32();
             var centerY = reader.ReadInt32();
@@ -43,6 +45,9 @@ namespace AoE2Wide
 
             var outStream = new MemoryStream();
             var writer = new BinaryWriter(outStream);
+
+            UserFeedback.Info(string.Format("Resizing image #{0} for {1}x{2} to {3}x{4}",
+                id, oldWidth, oldHeight, newWidth, newHeight));
 
             writer.Write(version);
             writer.Write(framecount);
