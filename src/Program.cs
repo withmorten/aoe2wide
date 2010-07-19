@@ -56,12 +56,16 @@ namespace AoE2Wide
         }
 
         static string[] patchFiles;
+        static Patch[] allPatches;
         private static Patch FindPatchForExe(int exeFileSize, string exeMd5, string exeFilenameForFeedback)
         {
             if (patchFiles == null)
                 patchFiles = FindPatchFiles();
-            var patches = patchFiles.Select(patchFile => Patcher.TryReadPatch(patchFile, true));
-            var matchingPatches = patches.Where(patch => patch.FileSize == exeFileSize && patch.Md5.Equals(exeMd5)).ToArray();
+
+            if (allPatches == null)
+                allPatches = patchFiles.Select(patchFile => Patcher.TryReadPatch(patchFile, true)).ToArray();
+
+            var matchingPatches = allPatches.Where(patch => patch.FileSize == exeFileSize && patch.Md5.Equals(exeMd5)).ToArray();
 
             if (matchingPatches.Length == 0)
                 return null;
@@ -244,11 +248,11 @@ namespace AoE2Wide
                     AddAsmToRootPatchFile();
                     return;
                 }
-/*                if (args[0].Equals(@"test"))
-                {
-                    PatchAllDrs();
-                    return;
-                }*/
+                /*                if (args[0].Equals(@"test"))
+                                {
+                                    PatchAllDrs();
+                                    return;
+                                }*/
                 if (args[0].Equals("createpatches"))
                 {
                     var allExes = FindFiles(@"AoK-TC executables", @"age2_x1*.exe", null, null);
@@ -280,6 +284,26 @@ namespace AoE2Wide
                 return;
             }
 
+            int newWidth = 0, newHeight = 0;
+            switch (args.Length)
+            {
+                case 0:
+                    break;
+                case 2:
+                    {
+                        if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
+                        {
+                            ShowUsage();
+                            return;
+                        }
+
+                    }
+                    break;
+                default:
+                    ShowUsage();
+                    break;
+            }
+
             _orgDrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac.drs");
             _orgX1DrsPath = Path.Combine(Path.Combine(_gameDirectory, @"Data"), @"interfac_x1.drs");
 
@@ -289,87 +313,63 @@ namespace AoE2Wide
             UserFeedback.Info("Trying to find a patch file for all executables > 2MiB in size");
             var allExecutables = FindFiles("executables", "*.exe", null, null);
             var allLargeExes = allExecutables.Where(exe => new FileInfo(exe).Length > 2000000);
+
             foreach (var exe in allLargeExes)
+                FindResAndPatchExecutable(newWidth, newHeight, exe);
+        }
+
+        private static void FindResAndPatchExecutable(int newWidth, int newHeight, string exe)
+        {
+            try
             {
-                try
+                UserFeedback.Trace(@"");
+                _orgExePath = exe;
+                var patch = FindPatchForExe(_orgExePath);
+                if (patch == null)
                 {
-                    _orgExePath = exe;
-                    var patch = FindPatchForExe(_orgExePath);
-                    if (patch == null)
+                    UserFeedback.Trace("No patches found for executable '{0}'", _orgExePath);
+                    return;
+                }
+
+                UserFeedback.Info(string.Format("Patching Exe '{0}' (version {1}) with patch file '{2}'", _orgExePath, patch.Version, patch.PatchFilepath));
+
+                if (patch.InterfaceX1DrsPosition > 0 && !File.Exists(_orgX1DrsPath))
+                    throw new FatalError(string.Format(@"Cannot find X1 drs file '{0}' in the game folder", _orgX1DrsPath));
+
+                if (patch.InterfaceX1DrsPosition == 0 && File.Exists(_orgX1DrsPath))
+                    UserFeedback.Warning(string.Format(@"Found X1 drs file '{0}' in the game folder, but no x1drspos=??? in patch file. X1 drs won't be patched!", _orgX1DrsPath));
+
+                if (newWidth == 0 && newHeight == 0)
+                {
+                    UserFeedback.Info(
+                        @"Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                    var doneList = new HashSet<int>();
+                    foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                     {
-                        UserFeedback.Trace("No patches found for executable '{0}'", _orgExePath);
-                        continue;
-                    }
-
-                    UserFeedback.Info(string.Format("Patching Exe '{0}' (version {1}) with patch file '{2}'", _orgExePath, patch.Version, patch.PatchFilepath));
-
-                    var patchFilePath = patch.PatchFilepath;
-                    UserFeedback.Trace(@"");
-                    UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
-                    /*
-                                    try
-                                    {
-                                        UserFeedback.Trace(@"Locating the correct original exe");
-                                        _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
-                                    }
-                                    catch (FatalError)
-                                    {
-                                        UserFeedback.Warning(@"No original exe found for patch file '{0}', skipping.", patchFilePath);
-                                        continue;
-                                    }
-                    */
-                    if (patch.InterfaceX1DrsPosition > 0 && !File.Exists(_orgX1DrsPath))
-                        throw new FatalError(string.Format(@"Cannot find X1 drs file '{0}' in the game folder", _orgX1DrsPath));
-
-                    if (patch.InterfaceX1DrsPosition == 0 && File.Exists(_orgX1DrsPath))
-                        UserFeedback.Warning(string.Format(@"Found X1 drs file '{0}' in the game folder, but no x1drspos=??? in patch file. X1 drs won't be patched!", _orgX1DrsPath));
-
-                    switch (args.Length)
-                    {
-                        case 0:
-                            {
-                                UserFeedback.Info(
-                                    @"Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
-                                var doneList = new HashSet<int>();
-                                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-                                {
-                                    try
-                                    {
-                                        var newWidth = screen.Bounds.Width;
-                                        var newHeight = screen.Bounds.Height;
-                                        var key = newWidth + (newHeight * 65536);
-                                        if (doneList.Add(key))
-                                            PatchExecutable(newWidth, newHeight, patch);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        UserFeedback.Error(e);
-                                    }
-                                }
-                            }
-                            break;
-                        case 2:
-                            {
-                                int newWidth, newHeight;
-                                if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
-                                {
-                                    ShowUsage();
-                                    return;
-                                }
-
+                        try
+                        {
+                            newWidth = screen.Bounds.Width;
+                            newHeight = screen.Bounds.Height;
+                            var key = newWidth + (newHeight * 65536);
+                            if (doneList.Add(key))
                                 PatchExecutable(newWidth, newHeight, patch);
-                            }
-                            break;
-                        default:
-                            ShowUsage();
-                            break;
+                        }
+                        catch (Exception e)
+                        {
+                            UserFeedback.Error(e);
+                        }
                     }
                 }
-                catch (Exception e)
+                else
                 {
-                    UserFeedback.Error(e);
+                    PatchExecutable(newWidth, newHeight, patch);
                 }
             }
+            catch (Exception e)
+            {
+                UserFeedback.Error(e);
+            }
+            return;
         }
 
         private static void AddAsmToRootPatchFile()

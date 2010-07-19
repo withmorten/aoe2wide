@@ -56,10 +56,12 @@ namespace AoE2Wide
         {
             try
             {
+                UserFeedback.Info(@"Reading the patch file '{0}'", patchFile);
                 return ReadPatch(patchFile, activeOnly);
             }
-            catch
+            catch (Exception e)
             {
+                UserFeedback.Error(e);
                 return new Patch() { PatchFilepath = patchFile };
             }
         }
