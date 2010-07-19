@@ -24,6 +24,7 @@ namespace AoE2Wide
         public string Md5;
         public string Version;
         public int InterfaceDrsPosition;
+        public int InterfaceX1DrsPosition;
         public IEnumerable<Item> Items;
     }
 
@@ -52,89 +53,102 @@ namespace AoE2Wide
 
         public static Patch ReadPatch(string patchFile, bool activeOnly)
         {
-            var items = new List<Item>(1024);
-            var lines = File.ReadAllLines(patchFile);
-            var usedLines = new List<string>(lines.Length);
-            var patch = new Patch();
-
-            foreach (var line in lines)
+            try
             {
-                if (line.StartsWith("size="))
-                {
-                    patch.FileSize = int.Parse(line.Substring(5));
-                    continue;
-                }
-                if (line.StartsWith("md5="))
-                {
-                    patch.Md5 = line.Substring(4);
-                    continue;
-                }
-                if (line.StartsWith("version="))
-                {
-                    patch.Version = line.Substring(8);
-                    continue;
-                }
-                if (line.StartsWith("drspos="))
-                {
-                    patch.InterfaceDrsPosition = int.Parse(line.Substring(7),
-                                                           System.Globalization.NumberStyles.HexNumber);
-                    continue;
-                }
+                var items = new List<Item>(1024);
+                var lines = File.ReadAllLines(patchFile);
+                var usedLines = new List<string>(lines.Length);
+                var patch = new Patch();
 
-                if (line.StartsWith("["))
-                    continue;
-                if (line.StartsWith("#"))
-                    continue;
-
-                var splitAsm = line.Split(new[] {'|'}, 2);
-                var words = splitAsm[0].Split(new[] {' ', '\t'}, 4, StringSplitOptions.RemoveEmptyEntries);
-                if (activeOnly)
+                foreach (var line in lines)
                 {
-                    if (words.Length < 3)
+                    if (line.StartsWith("size="))
+                    {
+                        patch.FileSize = int.Parse(line.Substring(5));
                         continue;
-                    if (
-                        !words[2].Equals("H") &&
-                        !words[2].Equals("V") &&
-                        !words[2].Equals("dH") &&
-                        !words[2].Equals("dV") &&
-                        !words[2].Equals("HV")
-                        )
+                    }
+                    if (line.StartsWith("md5="))
+                    {
+                        patch.Md5 = line.Substring(4);
                         continue;
-                }
-                else
-                {
-                    if (words.Length < 2)
+                    }
+                    if (line.StartsWith("version="))
+                    {
+                        patch.Version = line.Substring(8);
                         continue;
-                }
+                    }
+                    if (line.StartsWith("drspos="))
+                    {
+                        patch.InterfaceDrsPosition = int.Parse(line.Substring(7),
+                                                               System.Globalization.NumberStyles.HexNumber);
+                        continue;
+                    }
+                    if (line.StartsWith("x1drspos="))
+                    {
+                        patch.InterfaceX1DrsPosition = int.Parse(line.Substring(9),
+                                                               System.Globalization.NumberStyles.HexNumber);
+                        continue;
+                    }
 
-                var item = new Item
-                               {
-                                   Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
-                                   ReferenceValue = int.Parse(words[1]),
-                                   Type = @"",
-                                   Comments = @""
-                               };
-                if (words.Length > 2)
-                    item.Type = words[2];
+                    if (line.StartsWith("["))
+                        continue;
+                    if (line.StartsWith("#"))
+                        continue;
 
-                if (words.Length > 3)
-                {
-                    var splitComment = words[3].Split(new[] {' ', '\t'}, 2, StringSplitOptions.RemoveEmptyEntries);
-                    if (int.TryParse(splitComment[0], out item.Parameter))
-                        item.Comments = splitComment.Length == 1 ? @"" : splitComment[1].TrimEnd();
+                    var splitAsm = line.Split(new[] { '|' }, 2);
+                    var words = splitAsm[0].Split(new[] { ' ', '\t' }, 4, StringSplitOptions.RemoveEmptyEntries);
+                    if (activeOnly)
+                    {
+                        if (words.Length < 3)
+                            continue;
+                        if (
+                            !words[2].Equals("H") &&
+                            !words[2].Equals("V") &&
+                            !words[2].Equals("dH") &&
+                            !words[2].Equals("dV") &&
+                            !words[2].Equals("HV")
+                            )
+                            continue;
+                    }
                     else
-                        item.Comments = words[3].TrimEnd();
+                    {
+                        if (words.Length < 2)
+                            continue;
+                    }
+
+                    var item = new Item
+                                   {
+                                       Pos = int.Parse(words[0], System.Globalization.NumberStyles.HexNumber),
+                                       ReferenceValue = int.Parse(words[1]),
+                                       Type = @"",
+                                       Comments = @""
+                                   };
+                    if (words.Length > 2)
+                        item.Type = words[2];
+
+                    if (words.Length > 3)
+                    {
+                        var splitComment = words[3].Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                        if (int.TryParse(splitComment[0], out item.Parameter))
+                            item.Comments = splitComment.Length == 1 ? @"" : splitComment[1].TrimEnd();
+                        else
+                            item.Comments = words[3].TrimEnd();
+                    }
+
+                    if (!activeOnly && splitAsm.Length > 1)
+                        item.Asm = splitAsm[1].Trim();
+
+                    item.OriginalPos = item.Pos;
+                    items.Add(item);
+                    usedLines.Add(line);
                 }
-
-                if (!activeOnly && splitAsm.Length > 1)
-                    item.Asm = splitAsm[1].Trim();
-
-                item.OriginalPos = item.Pos;
-                items.Add(item);
-                usedLines.Add(line);
+                patch.Items = items;
+                return patch;
             }
-            patch.Items = items;
-            return patch;
+            catch (Exception e)
+            {
+                throw new FatalError("Couldn't read or parse patch file");
+            }
         }
 
         static public void PatchDrsRefInExe(byte[] exe, string newInterfaceDrsName, Patch patch)
@@ -151,7 +165,21 @@ namespace AoE2Wide
             }
         }
 
-        private static string FindAsm(int pos, IDictionary<int,string> asmMap)
+        static public void PatchX1DrsRefInExe(byte[] exe, string newInterfaceDrsName, Patch patch)
+        {
+            var drsPos = patch.InterfaceX1DrsPosition;
+            if (exe[drsPos] != 'i')
+                throw new FatalError(@"Didn't find interfac_x1.drs reference at expected location. Wrong exe.");
+
+            var newBytes = Encoding.ASCII.GetBytes(newInterfaceDrsName);
+            foreach (var byt in newBytes)
+            {
+                exe[drsPos] = byt;
+                drsPos++;
+            }
+        }
+
+        private static string FindAsm(int pos, IDictionary<int, string> asmMap)
         {
             string retVal = null;
             var min = pos - 10;
