@@ -48,6 +48,34 @@ namespace AoE2Wide
             return FindFile(whatFile, fileName, null, null);
         }
 
+        private static Patch FindPatchForExe(string exeFilename)
+        {
+            var fileSize = (int)new FileInfo(exeFilename).Length;
+            var exeMd5 = GetChecksum(exeFilename);
+            return FindPatchForExe(fileSize, exeMd5, exeFilename);
+        }
+
+        static string[] patchFiles;
+        private static Patch FindPatchForExe(int exeFileSize, string exeMd5, string exeFilenameForFeedback)
+        {
+            if (patchFiles == null)
+                patchFiles = FindPatchFiles();
+            var patches = patchFiles.Select(patchFile => Patcher.TryReadPatch(patchFile, true));
+            var matchingPatches = patches.Where(patch => patch.FileSize == exeFileSize && patch.Md5.Equals(exeMd5)).ToArray();
+
+            if (matchingPatches.Length == 0)
+                return null;
+
+            if (matchingPatches.Length == 1)
+                return matchingPatches[0];
+
+            UserFeedback.Warning("Multiple matching patches found for executable '{0}', using first:", exeFilenameForFeedback);
+            foreach (var mp in matchingPatches)
+                UserFeedback.Trace("* {0}", mp.PatchFilepath);
+
+            return matchingPatches[0];
+        }
+
         private static string FindExeFile(int fileSize, string md5)
         {
             const string fileName = @"*.exe";
@@ -200,7 +228,7 @@ namespace AoE2Wide
                                                 FileShare.None,
                                                 1024 * 1024, FileOptions.SequentialScan))
                 {
-                    UserFeedback.Trace(@"Patching DRS");
+                    UserFeedback.Trace(@"Patching DRS '{0}'", System.IO.Path.GetFileName(_orgDrsPath));
                     DrsPatcher.Patch(interfaceDrs, newDrs, oldWidth, oldHeight, newWidth, newHeight);
                 }
             }
@@ -258,78 +286,88 @@ namespace AoE2Wide
             if (!File.Exists(_orgDrsPath))
                 throw new FatalError(string.Format(@"Cannot find drs file '{0}' in the game folder", _orgDrsPath));
 
-            var patchFilePaths = FindPatchFiles();
-            foreach (var patchFilePath in patchFilePaths)
+            UserFeedback.Info("Trying to find a patch file for all executables > 2MiB in size");
+            var allExecutables = FindFiles("executables", "*.exe", null, null);
+            var allLargeExes = allExecutables.Where(exe => new FileInfo(exe).Length > 2000000);
+            foreach (var exe in allLargeExes)
             {
-                UserFeedback.Trace(@"");
-                UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
-                Patch patch;
                 try
                 {
-                    patch = Patcher.ReadPatch(patchFilePath, true);
-                }
-                catch (FatalError)
-                {
-                    UserFeedback.Warning(@"Invalid patch file '{0}', skipping.", patchFilePath);
-                    continue;
-                }
+                    _orgExePath = exe;
+                    var patch = FindPatchForExe(_orgExePath);
+                    if (patch == null)
+                    {
+                        UserFeedback.Trace("No patches found for executable '{0}'", _orgExePath);
+                        continue;
+                    }
 
-                try
-                {
-                    UserFeedback.Trace(@"Locating the correct original exe");
-                    _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
-                }
-                catch (FatalError)
-                {
-                    UserFeedback.Warning(@"No original exe found for patch file '{0}', skipping.", patchFilePath);
-                    continue;
-                }
+                    UserFeedback.Info(string.Format("Patching Exe '{0}' (version {1}) with patch file '{2}'", _orgExePath, patch.Version, patch.PatchFilepath));
 
-                if (patch.InterfaceX1DrsPosition > 0 && !File.Exists(_orgX1DrsPath))
-                    throw new FatalError(string.Format(@"Cannot find X1 drs file '{0}' in the game folder", _orgX1DrsPath));
+                    var patchFilePath = patch.PatchFilepath;
+                    UserFeedback.Trace(@"");
+                    UserFeedback.Info(@"Reading the patch file '{0}'", patchFilePath);
+                    /*
+                                    try
+                                    {
+                                        UserFeedback.Trace(@"Locating the correct original exe");
+                                        _orgExePath = FindExeFile(patch.FileSize, patch.Md5);
+                                    }
+                                    catch (FatalError)
+                                    {
+                                        UserFeedback.Warning(@"No original exe found for patch file '{0}', skipping.", patchFilePath);
+                                        continue;
+                                    }
+                    */
+                    if (patch.InterfaceX1DrsPosition > 0 && !File.Exists(_orgX1DrsPath))
+                        throw new FatalError(string.Format(@"Cannot find X1 drs file '{0}' in the game folder", _orgX1DrsPath));
 
-                if (patch.InterfaceX1DrsPosition == 0 && File.Exists(_orgX1DrsPath))
-                    UserFeedback.Warning(string.Format(@"Found X1 drs file '{0}' in the game folder, but no x1drspos=??? in patch file. X1 drs won't be patched!", _orgX1DrsPath));
+                    if (patch.InterfaceX1DrsPosition == 0 && File.Exists(_orgX1DrsPath))
+                        UserFeedback.Warning(string.Format(@"Found X1 drs file '{0}' in the game folder, but no x1drspos=??? in patch file. X1 drs won't be patched!", _orgX1DrsPath));
 
-                switch (args.Length)
-                {
-                    case 0:
-                        {
-                            UserFeedback.Info(
-                                @"Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
-                            var doneList = new HashSet<int>();
-                            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                    switch (args.Length)
+                    {
+                        case 0:
                             {
-                                try
+                                UserFeedback.Info(
+                                    @"Auto patching for all current screen sizes. Note that the game will always use the primary screen!");
+                                var doneList = new HashSet<int>();
+                                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                                 {
-                                    var newWidth = screen.Bounds.Width;
-                                    var newHeight = screen.Bounds.Height;
-                                    var key = newWidth + (newHeight * 65536);
-                                    if (doneList.Add(key))
-                                        PatchExecutable(newWidth, newHeight, patch);
-                                }
-                                catch (Exception e)
-                                {
-                                    UserFeedback.Error(e);
+                                    try
+                                    {
+                                        var newWidth = screen.Bounds.Width;
+                                        var newHeight = screen.Bounds.Height;
+                                        var key = newWidth + (newHeight * 65536);
+                                        if (doneList.Add(key))
+                                            PatchExecutable(newWidth, newHeight, patch);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        UserFeedback.Error(e);
+                                    }
                                 }
                             }
-                        }
-                        break;
-                    case 2:
-                        {
-                            int newWidth, newHeight;
-                            if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
+                            break;
+                        case 2:
                             {
-                                ShowUsage();
-                                return;
-                            }
+                                int newWidth, newHeight;
+                                if (!int.TryParse(args[0], out newWidth) || !int.TryParse(args[1], out newHeight))
+                                {
+                                    ShowUsage();
+                                    return;
+                                }
 
-                            PatchExecutable(newWidth, newHeight, patch);
-                        }
-                        break;
-                    default:
-                        ShowUsage();
-                        break;
+                                PatchExecutable(newWidth, newHeight, patch);
+                            }
+                            break;
+                        default:
+                            ShowUsage();
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    UserFeedback.Error(e);
                 }
             }
         }
