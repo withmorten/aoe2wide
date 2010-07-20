@@ -21,7 +21,7 @@ namespace AoE2Wide
             Console.ForegroundColor = normalColor;
         }
 
-        public static void Info(string msg, string param1)
+        public static void Info(string msg, object param1)
         {
             Info(string.Format(msg, param1));
         }
