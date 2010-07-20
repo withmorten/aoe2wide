@@ -30,13 +30,18 @@ namespace AoE2Wide
                 return data;
 
             var height = reader.ReadInt32();
-            if (height != oldHeight)
-            {
-                newHeight = oldHeight = height;
-            }
-
             var centerX = reader.ReadInt32();
             var centerY = reader.ReadInt32();
+
+            if (height - centerY != oldHeight)
+                return data;
+
+            if (centerY != 0)
+            {
+                int higher = newHeight - oldHeight;
+                centerY -= higher;
+                newHeight = oldHeight = height;
+            }
 
             var newMaskSize = (uint) (newHeight*4);
             var newLinesOffset = maskOffset + newMaskSize;
