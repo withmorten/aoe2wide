@@ -1,0 +1,8 @@
+C:\msys\home\morten\software\aoe2wide\src\bin\Release\AoE2Wide.exe.config
+C:\msys\home\morten\software\aoe2wide\src\bin\Release\AoE2Wide.exe
+C:\msys\home\morten\software\aoe2wide\src\bin\Release\AoE2Wide.pdb
+C:\msys\home\morten\software\aoe2wide\src\obj\Release\AoE2Wide.csprojResolveAssemblyReference.cache
+C:\msys\home\morten\software\aoe2wide\src\obj\Release\AoE2Wide.Properties.Resources.resources
+C:\msys\home\morten\software\aoe2wide\src\obj\Release\AoE2Wide.csproj.GenerateResource.Cache
+C:\msys\home\morten\software\aoe2wide\src\obj\Release\AoE2Wide.exe
+C:\msys\home\morten\software\aoe2wide\src\obj\Release\AoE2Wide.pdb

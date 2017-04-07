@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="AoE2Wide">
+</Property><Property Name="Solution File" Value="C:\msys\home\morten\software\aoe2wide\src\AoE2Wide.sln">
+</Property><Property Name="Date" Value="Freitag, 7. April 2017">
+</Property><Property Name="Time" Value="13:17">
+</Property></Properties><Event ErrorLevel="0" Project="AoE2Wide" Source="AoE2Wide.csproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="AoE2Wide" Source="AoE2Wide.csproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="AoE2Wide.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="AoE2Wide.sln" Description="Converted">
+</Event><Event ErrorLevel="0" Project="AoE2Wide" Source="app.config" Description="File converted successfully. All &lt;supportedRuntime&gt; and &lt;requiredRuntime&gt; tags were removed to enable the project to build and run with Visual Studio 2005.">
+</Event><Event ErrorLevel="3" Project="AoE2Wide" Source="app.config" Description="Converted">
+</Event></UpgradeLog>
